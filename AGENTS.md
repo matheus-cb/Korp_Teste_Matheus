@@ -49,7 +49,7 @@ O que **não** mudou, e é o que sustenta a segurança:
 - **INV-24 — A IA nunca executa sozinha.** Ela devolve uma **ação proposta** tipada; a interface mostra exatamente o que será feito; e só após confirmação humana o backend executa.
 - **INV-25 — A confirmação é controle de servidor.** A ação carrega assinatura HMAC e prazo de validade (`ProposedActionService`). Confirmação apenas na interface seria contornável por prompt injection chamando o endpoint direto.
 - **INV-26 — A execução revalida tudo.** A proposta é sugestão, não autorização: existência de produto e saldo são checados de novo no momento de confirmar.
-- **INV-27 — As tools MCP continuam somente leitura.** `search_products`, `get_product` e `check_availability`. Criar ou fechar nota **não** virou tool: o servidor MCP é do Inventory e nota é domínio do Billing, que é o cliente MCP — uma tool assim faria o Billing chamar a si mesmo pelo protocolo.
+- **INV-27 — As tools MCP continuam somente leitura.** `search_products`, `get_product` e `check_availability`. Criar ou fechar nota **não** virou tool: o servidor MCP é do Inventory e nota é domínio do Billing, que é o cliente MCP — uma tool assim faria o Billing chamar a si mesmo pelo protocolo. As tools recebem `IReadOnlyProductCatalog`, que não tem método de escrita: a anotação `ReadOnly` declara a intenção, o tipo é o que a torna inalcançável.
 
 O que se perdeu: antes a IA não podia causar dano porque não tinha ferramenta de escrita. Agora o argumento é "confiamos na confirmação assinada e na revalidação". É mais fraco, e por isso os controles acima são obrigatórios e testados em `ProposedActionServiceTests`.
 
