@@ -16,7 +16,8 @@ fi
 
 token="$(head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n')"
 if grep -q '^INTERNAL_SERVICE_TOKEN=' "$env_file"; then
-  tmp="$(mktemp)"
+  # Template explícito: `mktemp` sem argumento não é portátil no macOS/BSD.
+  tmp="$(mktemp "${TMPDIR:-/tmp}/notaflow-env.XXXXXX")"
   sed "s|^INTERNAL_SERVICE_TOKEN=.*$|INTERNAL_SERVICE_TOKEN=$token|" "$env_file" > "$tmp"
   mv "$tmp" "$env_file"
 else

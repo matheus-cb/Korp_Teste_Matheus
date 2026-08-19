@@ -24,9 +24,31 @@ NODE_DIR="$HOME/.local/node-$NODE_VERSION"
 DOTNET_DIR="$HOME/.dotnet"
 CHROME_WRAPPER="$HOME/.cache/notaflow/chrome-headless"
 
+# Comparação de versão sem `sort -V`: a opção é do GNU coreutils e falta no
+# `sort` do macOS/BSD, onde a checagem falharia e o Node correto não seria
+# instalado.
+version_at_least() {
+  local have="$1" want="$2" h w i
+  local -a hp wp
+  IFS=. read -r -a hp <<<"$have"
+  IFS=. read -r -a wp <<<"$want"
+  for i in 0 1 2; do
+    h="${hp[i]:-0}"; w="${wp[i]:-0}"
+    h="${h%%[!0-9]*}"; w="${w%%[!0-9]*}"
+    h="${h:-0}"; w="${w:-0}"
+    ((10#$h > 10#$w)) && return 0
+    ((10#$h < 10#$w)) && return 1
+  done
+  return 0
+}
+
 # --- .NET SDK, na versão fixada em global.json --------------------------------
-if [ ! -x "$DOTNET_DIR/dotnet" ]; then
-  echo "hook: instalando o .NET SDK de global.json"
+# Existir o binário não basta: com o global.json presente, `dotnet --version`
+# resolve a versão pedida e falha se ela não estiver instalada. É o proprio
+# resolvedor decidindo, então subir a versao fixada dispara a reinstalacao em
+# vez de quebrar so no restore.
+if ! ("$DOTNET_DIR/dotnet" --version >/dev/null 2>&1); then
+  echo "hook: instalando o .NET SDK pedido por global.json"
   curl -fsSL https://dot.net/v1/dotnet-install.sh -o "${TMPDIR:-/tmp}/dotnet-install.sh"
   bash "${TMPDIR:-/tmp}/dotnet-install.sh" --jsonfile global.json --install-dir "$DOTNET_DIR"
 fi
@@ -35,12 +57,8 @@ export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 
 # --- Node, só se o do contêiner for velho demais ------------------------------
 node_ok=0
-if command -v node >/dev/null 2>&1; then
-  # 22.22.3 é o piso do Angular CLI; comparação por ordenação de versão.
-  current="$(node --version | tr -d 'v')"
-  if [ "$(printf '%s\n22.22.3\n' "$current" | sort -V | head -1)" = "22.22.3" ]; then
-    node_ok=1
-  fi
+if command -v node >/dev/null 2>&1 && version_at_least "$(node --version | tr -d 'v')" "22.22.3"; then
+  node_ok=1
 fi
 
 if [ "$node_ok" -eq 0 ] && [ ! -x "$NODE_DIR/bin/node" ]; then

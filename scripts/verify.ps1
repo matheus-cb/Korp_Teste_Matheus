@@ -16,8 +16,19 @@ if (-not $dotnet) {
     }
 }
 
+# O gate dos arquivos de contexto e um script bash; no Windows ele vem com o
+# Git. Sem esta chamada o verify.ps1 imprime sucesso sem ter verificado a
+# convencao — exatamente o buraco que o gate fecha.
+$bash = Get-Command bash -ErrorAction SilentlyContinue
+if (-not $bash) {
+    throw 'bash nao encontrado. Ele acompanha o Git para Windows e e necessario para scripts/check-agent-docs.sh.'
+}
+
 Push-Location $repoRoot
 try {
+    & $bash.Source (Join-Path $repoRoot 'scripts/check-agent-docs.sh')
+    if ($LASTEXITCODE -ne 0) { throw 'scripts/check-agent-docs.sh falhou.' }
+
     & $dotnet.Source restore NotaFlow.slnx
     & $dotnet.Source build NotaFlow.slnx --configuration Release --no-restore
     & $dotnet.Source test NotaFlow.slnx --configuration Release --no-build

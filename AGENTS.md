@@ -93,7 +93,7 @@ dotnet test tests/inventory/Inventory.UnitTests/Inventory.UnitTests.csproj --no-
 (cd frontend && npm test)
 ```
 
-**Camada 3 — exige daemon Docker.** Integração dos dois serviços contra PostgreSQL real via Testcontainers, mais o smoke do Compose que o CI executa.
+**Camada 3 — exige daemon Docker.** Integração dos dois serviços contra PostgreSQL real via Testcontainers, mais a validação da configuração do Compose. O **smoke HTTP** que sobe a stack, faz login, fecha nota e confere saldo e rotas internas roda **só no `quality-gate`** — localmente ele não é reproduzido, para não manter setenta linhas de `curl` divergindo do CI em silêncio.
 
 ```bash
 dotnet test tests/billing/Billing.IntegrationTests/Billing.IntegrationTests.csproj
@@ -101,7 +101,7 @@ dotnet test tests/inventory/Inventory.IntegrationTests/Inventory.IntegrationTest
 docker compose config --quiet
 ```
 
-`scripts/verify.sh` executa a Camada 1; `scripts/verify.sh --all` tenta as três e **avisa, em vez de falhar**, quando falta Docker ou Chromium — depois lista no fim o que não rodou. `scripts/verify.ps1` roda as três de uma vez e pressupõe a estação de trabalho completa, com Docker Desktop.
+`scripts/verify.sh` executa a Camada 1; `scripts/verify.sh --all` tenta as três. Falta de Chromium ou Docker **avisa em vez de falhar**, e o script lista no fim o que não rodou — mas sai com **código 3**, para que automação que só lê o exit status não confunda "pulou" com "passou". Falta de .NET ou Node compatível é **erro**: a Camada 1 é obrigatória, e pulá-la produziria o mesmo verde falso que ela existe para impedir. `scripts/verify.ps1` roda as três de uma vez e pressupõe a estação de trabalho completa, com Docker Desktop.
 
 > `dotnet test NotaFlow.slnx` roda a solução inteira e **inclui a Camada 3** — use-o só onde há Docker.
 
