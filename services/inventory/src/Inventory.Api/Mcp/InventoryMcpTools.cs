@@ -18,7 +18,7 @@ public sealed class InventoryMcpTools
         UseStructuredContent = true)]
     [Description("Search the internal product catalog by code or description. Returns at most five current catalog matches and never changes inventory.")]
     public static async Task<SearchProductsToolResult> SearchProducts(
-        IProductCatalog catalog,
+        IReadOnlyProductCatalog catalog,
         [Description("Text to match against product code or description; 1 to 100 characters.")] string query,
         [Description("Maximum number of matches to return; from 1 to 5.")] int limit = 5,
         CancellationToken cancellationToken = default)
@@ -57,7 +57,7 @@ public sealed class InventoryMcpTools
         UseStructuredContent = true)]
     [Description("Get one current product from the internal catalog by its UUID. Never changes inventory.")]
     public static async Task<GetProductToolResult> GetProduct(
-        IProductCatalog catalog,
+        IReadOnlyProductCatalog catalog,
         [Description("Product UUID returned by search_products.")] string productId,
         CancellationToken cancellationToken = default)
     {
@@ -86,7 +86,7 @@ public sealed class InventoryMcpTools
         UseStructuredContent = true)]
     [Description("Check current stock availability for up to twenty distinct catalog products. This is a point-in-time read; closing an invoice must revalidate stock.")]
     public static async Task<CheckAvailabilityToolResult> CheckAvailability(
-        IProductCatalog catalog,
+        IReadOnlyProductCatalog catalog,
         [Description("Distinct product UUIDs and positive quantities to check.")] IReadOnlyList<AvailabilityToolInput> items,
         CancellationToken cancellationToken = default)
     {

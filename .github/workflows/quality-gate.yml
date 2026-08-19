@@ -6,6 +6,15 @@ on:
   pull_request:
 
 jobs:
+  agent-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # AGENTS.md é canônico e o CLAUDE.md só o importa. Sem este gate a
+      # convenção é texto: uma regra escrita no arquivo errado fica invisível
+      # para o Codex e ninguém percebe.
+      - run: ./scripts/check-agent-docs.sh
+
   backend:
     runs-on: ubuntu-latest
     steps:

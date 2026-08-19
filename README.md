@@ -13,6 +13,13 @@ Pré-requisitos: Docker Desktop com WSL2 e Git.
 docker compose up --build
 ```
 
+Em Linux ou macOS, use o par POSIX:
+
+```bash
+./scripts/setup.sh
+docker compose up --build
+```
+
 Abra <http://localhost:4200>. A chave `OPENAI_API_KEY` é opcional: sem ela, todo o fluxo manual funciona e o Copiloto informa que está desabilitado.
 
 Para encerrar:
@@ -57,17 +64,19 @@ docker compose start inventory
 
 ## Desenvolvimento sem Docker para as APIs
 
-O SDK .NET 10 e o Node.js 24 são recomendados. Inicie bancos PostgreSQL compatíveis e ajuste as connection strings.
+O SDK .NET da versão fixada em `global.json` e o Node.js 24 são recomendados; o Angular CLI recusa Node anterior a 22.22.3. Inicie bancos PostgreSQL compatíveis e ajuste as connection strings.
 
-```powershell
+```bash
 dotnet restore NotaFlow.slnx
 dotnet build NotaFlow.slnx
-dotnet test NotaFlow.slnx
+dotnet test NotaFlow.slnx   # inclui os testes de integração: exige daemon Docker
 
-Set-Location frontend
+cd frontend
 npm ci
 npm start
 ```
+
+Para validar sem Docker, use `./scripts/verify.sh`; as camadas de validação estão descritas em [AGENTS.md](AGENTS.md).
 
 O proxy do Angular direciona `/inventory-api` a `localhost:5001` e `/billing-api` a `localhost:5002`.
 
@@ -75,7 +84,9 @@ O proxy do Angular direciona `/inventory-api` a `localhost:5001` e `/billing-api
 
 Billing funciona como host/orquestrador e cliente MCP. Ele descobre e chama, pelo protocolo, apenas as ferramentas `search_products`, `get_product` e `check_availability`. A Responses API recebe function tools equivalentes; o backend executa as chamadas MCP e valida deterministicamente o rascunho final.
 
-A IA nunca possui ferramenta para criar produto, persistir nota, fechar nota ou alterar saldo. O usuário precisa aplicar e confirmar o rascunho. Texto, imagens e descrições do catálogo são tratados como dados não confiáveis.
+A IA não possui ferramenta de escrita: nenhuma tool MCP cria produto, persiste nota, fecha nota ou altera saldo. O que ela pode devolver é uma **ação proposta** tipada — criar nota, ou criar e fechar. A proposta carrega assinatura HMAC e prazo de validade verificados no servidor, a interface mostra exatamente o que será feito, e só depois da confirmação humana o backend executa, revalidando produto e saldo do zero.
+
+A confirmação é controle de servidor, não de interface: sem a assinatura, uma injeção de prompt contornaria a tela chamando o endpoint de execução direto. Texto, imagens e descrições do catálogo são tratados como dados não confiáveis.
 
 Não envie dados pessoais ou sigilosos ao Copiloto. As requisições usam `store: false`, mas as políticas de monitoramento e retenção da API ainda se aplicam; veja o detalhamento técnico.
 
@@ -84,5 +95,5 @@ Não envie dados pessoais ou sigilosos ao Copiloto. As requisições usam `store
 - [Detalhamento técnico](docs/technical-details.md)
 - [Decisões arquiteturais](docs/architecture/decisions.md)
 - [Roteiro de apresentação](docs/video-script.md)
-- [Instruções para agentes](AGENTS.md)
+- [Instruções para agentes](AGENTS.md) — fonte canônica; `CLAUDE.md` a importa para o Claude Code
 - [Checklist de revisão](REVIEW.md)

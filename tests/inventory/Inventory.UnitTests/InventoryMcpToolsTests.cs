@@ -32,6 +32,28 @@ public sealed class InventoryMcpToolsTests
         });
     }
 
+    /// <summary>
+    /// INV-27 estrutural: a anotacao <c>ReadOnly</c> descreve a intencao, mas nao
+    /// impede nada — quem impede e o tipo injetado. Uma tool que peca
+    /// <see cref="IProductCatalog"/> volta a alcancar <c>CreateAsync</c>, e este
+    /// teste e o que reprova isso antes de virar tool de escrita por acidente.
+    /// </summary>
+    [Fact]
+    public void ToolsNeverReceiveAWriteCapableCatalog()
+    {
+        var offenders = typeof(InventoryMcpTools)
+            .GetMethods()
+            .Where(method => method.GetCustomAttributes(typeof(McpServerToolAttribute), false).Length > 0)
+            .SelectMany(
+                method => method.GetParameters(),
+                (method, parameter) => new { method, parameter })
+            .Where(x => typeof(IProductCatalog).IsAssignableFrom(x.parameter.ParameterType))
+            .Select(x => $"{x.method.Name}({x.parameter.ParameterType.Name} {x.parameter.Name})")
+            .ToArray();
+
+        Assert.Empty(offenders);
+    }
+
     [Fact]
     public async Task SearchProductsRejectsOversizedQueryWithoutTouchingCatalog()
     {
@@ -90,14 +112,13 @@ public sealed class InventoryMcpToolsTests
         Assert.Equal(7, product.Balance);
     }
 
-    private sealed class FakeProductCatalog : IProductCatalog
+    // Implementa so a leitura: nao existe mais CreateAsync para o fake precisar
+    // stubar, o que e a prova pratica de que a tool nao alcanca a escrita.
+    private sealed class FakeProductCatalog : IReadOnlyProductCatalog
     {
         public int SearchCalls { get; private set; }
         public int AvailabilityCalls { get; private set; }
         public ProductPageResponse SearchResult { get; init; } = new([], 1, 5, 0);
-
-        public Task<ProductResponse> CreateAsync(CreateProductRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
 
         public Task<ProductResponse?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<ProductResponse?>(null);

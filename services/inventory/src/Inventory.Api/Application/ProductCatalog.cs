@@ -7,9 +7,14 @@ using Npgsql;
 
 namespace Inventory.Api.Application;
 
-public interface IProductCatalog
+/// <summary>
+/// Consulta do catalogo. E este o contrato que as tools MCP recebem: sem metodo
+/// de escrita, uma tool nova nao tem por onde alterar o catalogo, mesmo que
+/// alguem esqueca a anotacao <c>ReadOnly</c> (INV-27). A anotacao continua
+/// existindo para o protocolo; este tipo e o que torna a escrita inalcancavel.
+/// </summary>
+public interface IReadOnlyProductCatalog
 {
-    Task<ProductResponse> CreateAsync(CreateProductRequest request, CancellationToken cancellationToken);
     Task<ProductResponse?> GetAsync(Guid id, CancellationToken cancellationToken);
     Task<ProductPageResponse> SearchAsync(
         string? query,
@@ -19,6 +24,15 @@ public interface IProductCatalog
     Task<IReadOnlyList<ProductAvailabilityResponse>> CheckAvailabilityAsync(
         IReadOnlyList<AvailabilityItemRequest> items,
         CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Consulta mais escrita. So o caminho REST recebe este contrato; injeta-lo numa
+/// tool MCP reabre exatamente o buraco que a separacao acima fecha.
+/// </summary>
+public interface IProductCatalog : IReadOnlyProductCatalog
+{
+    Task<ProductResponse> CreateAsync(CreateProductRequest request, CancellationToken cancellationToken);
 }
 
 public sealed class ProductCatalog(
