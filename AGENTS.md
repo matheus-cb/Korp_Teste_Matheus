@@ -4,7 +4,9 @@
 
 Este repositório implementa o NotaFlow, uma solução demonstrativa de emissão de notas fiscais. A prioridade é preservar consistência do estoque e capacidade de recuperação; a IA é assistiva e nunca executa sozinha.
 
-Regra nova, invariante ou comando entra **neste arquivo**, que todo agente lê. O `CLAUDE.md` apenas o importa e guarda o que é mecânica exclusiva do Claude Code.
+Regra nova, invariante ou comando entra **neste arquivo**, que todo agente lê. O `CLAUDE.md` apenas o importa e guarda o que é mecânica exclusiva do Claude Code; `scripts/check-agent-docs.sh` verifica isso, como qualquer outra regra daqui.
+
+Não mova regra para `.claude/rules/` nem para `AGENTS.md` de subpasta: o primeiro o Codex não lê, o segundo o Claude Code não lê. Instrução dividida por ferramenta é instrução que metade dos agentes não recebe.
 
 ## Invariantes
 
@@ -76,6 +78,7 @@ Três camadas, por dependência externa. Rode a maior camada que o ambiente perm
 **Camada 1 — sem dependência externa.** É o mínimo obrigatório de qualquer alteração; roda em qualquer sandbox de agente.
 
 ```bash
+./scripts/check-agent-docs.sh
 dotnet restore NotaFlow.slnx
 dotnet build NotaFlow.slnx --no-restore
 dotnet format NotaFlow.slnx --verify-no-changes --no-restore

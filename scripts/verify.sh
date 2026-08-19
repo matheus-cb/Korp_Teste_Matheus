@@ -31,6 +31,9 @@ if [ "$(printf '%s\n22.22.3\n' "$node_version" | sort -V | head -1)" = "22.22.3"
   node_ok=1
 fi
 
+step "Camada 1 — convenção dos arquivos de contexto"
+"$repo/scripts/check-agent-docs.sh"
+
 step "Camada 1 — backend"
 dotnet restore NotaFlow.slnx
 dotnet build NotaFlow.slnx --no-restore
