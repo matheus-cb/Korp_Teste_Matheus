@@ -4,7 +4,7 @@
 
 Este repositório implementa o NotaFlow, uma solução demonstrativa de emissão de notas fiscais. A prioridade é preservar consistência do estoque e capacidade de recuperação; a IA é assistiva e nunca executa sozinha.
 
-Este arquivo é a **fonte canônica de regras para qualquer agente**. O Codex o lê nativamente; o Claude Code lê `CLAUDE.md`, que importa este arquivo com `@AGENTS.md` e acrescenta só o que é específico daquela ferramenta. Regra nova entra aqui — nunca duplicada nos dois.
+Regra nova, invariante ou comando entra **neste arquivo**, que todo agente lê. O `CLAUDE.md` apenas o importa e guarda o que é mecânica exclusiva do Claude Code.
 
 ## Invariantes
 
@@ -64,6 +64,10 @@ Duas armadilhas que já custaram tempo:
 
 - O Angular CLI **recusa** Node abaixo de 22.22.3 e, ao recusar, imprime a mensagem e **sai com código 0**. Um agente que confere só o código de saída conclui que o lint passou. Confira a versão antes, não o exit status depois.
 - `docker --version` responde com o daemon desligado. Só `docker info` prova que a Camada 3 é executável.
+
+### Sandboxes de agente
+
+Os contêineres de sessão remota — Codex cloud e Claude Code na web — sobem **sem .NET SDK, com Node anterior ao mínimo do Angular CLI e sem daemon Docker**. Os dois primeiros se resolvem instalando no início da sessão. O terceiro não tem conserto: a **Camada 3 não é executável em sandbox**. Não tente subir Testcontainers nem `docker compose` lá; declare no relatório que ela ficou por executar.
 
 ## Comandos de validação
 
