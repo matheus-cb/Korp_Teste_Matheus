@@ -1,0 +1,47 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet restore *)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet format *)",
+      "Bash(dotnet --version)",
+      "Bash(dotnet --list-sdks)",
+      "Bash(npm install *)",
+      "Bash(npm ci *)",
+      "Bash(npm run lint *)",
+      "Bash(npm run build *)",
+      "Bash(npm run build:production *)",
+      "Bash(npm test *)",
+      "Bash(node --version)",
+      "Bash(cd *)",
+      "Bash(scripts/verify.sh *)",
+      "Bash(./scripts/verify.sh *)",
+      "Bash(docker info)",
+      "Bash(docker compose config *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Bash(docker compose down -v *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh",
+            "timeout": 600,
+            "statusMessage": "Preparando .NET, Node e Chromium"
+          }
+        ]
+      }
+    ]
+  }
+}

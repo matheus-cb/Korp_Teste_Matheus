@@ -4,6 +4,8 @@
 
 Este repositório implementa o NotaFlow, uma solução demonstrativa de emissão de notas fiscais. A prioridade é preservar consistência do estoque e capacidade de recuperação; a IA é assistiva e nunca executa sozinha.
 
+Este arquivo é a **fonte canônica de regras para qualquer agente**. O Codex o lê nativamente; o Claude Code lê `CLAUDE.md`, que importa este arquivo com `@AGENTS.md` e acrescenta só o que é específico daquela ferramenta. Regra nova entra aqui — nunca duplicada nos dois.
+
 ## Invariantes
 
 Regras numeradas e testáveis. Use o número no nome do teste e na mensagem de commit — assim cada regra tem um teste apontável, em vez de "temos testes".
@@ -49,23 +51,54 @@ O que **não** mudou, e é o que sustenta a segurança:
 
 O que se perdeu: antes a IA não podia causar dano porque não tinha ferramenta de escrita. Agora o argumento é "confiamos na confirmação assinada e na revalidação". É mais fraco, e por isso os controles acima são obrigatórios e testados em `ProposedActionServiceTests`.
 
+## Ferramentas exigidas
+
+| Ferramenta | Versão | Como conferir |
+|---|---|---|
+| .NET SDK | fixado em `global.json` (`10.0.400`, `latestPatch`) | `dotnet --version` |
+| Node.js | **≥ 22.22.3**, ou 24 como no CI | `node --version` |
+| Docker | daemon **em execução**, não só o cliente | `docker info` |
+| Chromium | qualquer, apontado por `CHROME_BIN` | `"$CHROME_BIN" --version` |
+
+Duas armadilhas que já custaram tempo:
+
+- O Angular CLI **recusa** Node abaixo de 22.22.3 e, ao recusar, imprime a mensagem e **sai com código 0**. Um agente que confere só o código de saída conclui que o lint passou. Confira a versão antes, não o exit status depois.
+- `docker --version` responde com o daemon desligado. Só `docker info` prova que a Camada 3 é executável.
+
 ## Comandos de validação
 
-```powershell
+Três camadas, por dependência externa. Rode a maior camada que o ambiente permitir e **declare no relatório final qual delas não rodou** — silenciar isso é reportar verde falso.
+
+**Camada 1 — sem dependência externa.** É o mínimo obrigatório de qualquer alteração; roda em qualquer sandbox de agente.
+
+```bash
 dotnet restore NotaFlow.slnx
 dotnet build NotaFlow.slnx --no-restore
-dotnet test NotaFlow.slnx --no-build
-dotnet format NotaFlow.slnx --verify-no-changes
-Set-Location frontend
-npm ci
-npm run lint
-npm test
-npm run build:production
+dotnet format NotaFlow.slnx --verify-no-changes --no-restore
+dotnet test tests/billing/Billing.Api.Tests.csproj --no-build
+dotnet test tests/inventory/Inventory.UnitTests/Inventory.UnitTests.csproj --no-build
+(cd frontend && npm ci && npm run lint && npm run build:production)
 ```
 
-`dotnet test` exige Docker: dois projetos de integração sobem PostgreSQL real via Testcontainers.
+**Camada 2 — exige Chromium.** Testes do frontend; sem `CHROME_BIN` o Karma falha por timeout, sem dizer que o navegador nunca subiu.
 
-Validar template Angular exige `ng build` — `tsc --noEmit` e `ng lint` **não** compilam templates e passam verdes com erro de binding.
+```bash
+(cd frontend && npm test)
+```
+
+**Camada 3 — exige daemon Docker.** Integração dos dois serviços contra PostgreSQL real via Testcontainers, mais o smoke do Compose que o CI executa.
+
+```bash
+dotnet test tests/billing/Billing.IntegrationTests/Billing.IntegrationTests.csproj
+dotnet test tests/inventory/Inventory.IntegrationTests/Inventory.IntegrationTests.csproj
+docker compose config --quiet
+```
+
+`scripts/verify.sh` executa a Camada 1; `scripts/verify.sh --all` tenta as três e **avisa, em vez de falhar**, quando falta Docker ou Chromium — depois lista no fim o que não rodou. `scripts/verify.ps1` roda as três de uma vez e pressupõe a estação de trabalho completa, com Docker Desktop.
+
+> `dotnet test NotaFlow.slnx` roda a solução inteira e **inclui a Camada 3** — use-o só onde há Docker.
+
+Validar template Angular exige `ng build` — `tsc --noEmit` e `ng lint` **não** compilam templates e passam verdes com erro de binding. Por isso `build:production` está na Camada 1, e não é opcional.
 
 ## Definição de pronto
 
@@ -75,6 +108,7 @@ Validar template Angular exige `ng build` — `tsc --noEmit` e `ng lint` **não*
 - Erros externos viram `ProblemDetails` sanitizado com `traceId`.
 - O fluxo manual continua operando sem OpenAI.
 - README e detalhamento técnico refletem o comportamento final.
+- O relatório final declara qual camada de validação rodou e qual não rodou, com o motivo.
 
 ## Risco e revisão
 

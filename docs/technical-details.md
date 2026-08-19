@@ -40,7 +40,9 @@ Inventory bloqueia/atualiza os produtos em transação única, verifica todos an
 
 O Copiloto aceita texto e, opcionalmente, JPEG/PNG/WebP. A OpenAI Responses API interpreta o pedido; function calls são traduzidos para chamadas das ferramentas MCP descobertas em Inventory. O resultado final segue schema estruturado e passa por validação determinística.
 
-As ferramentas MCP são somente leitura. A IA não cria nem fecha notas. A chave fica no backend, imagens não são persistidas, logs são sanitizados e o sistema manual opera sem a integração.
+As ferramentas MCP são somente leitura — `search_products`, `get_product` e `check_availability`. Criar ou fechar nota não é tool: o servidor MCP é do Inventory e nota é domínio do Billing, que é o cliente MCP; uma tool dessas faria o Billing chamar a si mesmo pelo protocolo.
+
+A escrita assistida existe por **ação proposta** (`ProposedActionService`): a IA devolve a ação, o servidor a assina em HMAC com prazo de validade, e a execução só ocorre após confirmação humana, revalidando existência de produto e saldo no momento de confirmar. A proposta é sugestão, não autorização. A chave fica no backend, imagens não são persistidas, logs são sanitizados e o sistema manual opera sem a integração.
 
 Cada chamada à Responses API usa `store: false` e o Billing reenvia explicitamente o histórico necessário ao loop de ferramentas. Isso evita a persistência de estado da resposta para continuidade da aplicação, mas não deve ser interpretado como retenção zero por si só: por padrão, o provedor pode manter logs de monitoramento de abuso por até 30 dias, e entradas de imagem passam por verificações de segurança. Por isso, a interface orienta o uso de pedidos operacionais sem dados pessoais ou sigilosos. Consulte os [controles de dados oficiais da OpenAI](https://developers.openai.com/api/docs/guides/your-data).
 
