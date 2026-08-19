@@ -1,0 +1,216 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatDialogRef } from '@angular/material/dialog';
+import { finalize } from 'rxjs';
+import type { UiError } from '../../core/models/api.models';
+import type { Product } from '../../core/models/product.model';
+import { ApiErrorService } from '../../core/services/api-error.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { ProductService } from '../../core/services/product.service';
+import { InlineAlertComponent } from '../../shared/inline-alert.component';
+import { ModalShellComponent } from '../../shared/modal-shell.component';
+
+/**
+ * Cadastro de produto: é uma ação dentro do catálogo, então acontece em modal
+ * e não tira o operador da listagem.
+ */
+@Component({
+  selector: 'app-product-form-dialog',
+  imports: [InlineAlertComponent, ModalShellComponent, ReactiveFormsModule],
+  template: `
+    <app-modal-shell
+      title="Novo produto"
+      confirmLabel="Salvar"
+      dismissLabel="Sair"
+      busyLabel="Salvando…"
+      [busy]="saving"
+      (confirm)="submit()"
+      (dismiss)="close()"
+    >
+      <form [formGroup]="form" novalidate (ngSubmit)="submit()">
+        <div class="nf-field" [class.invalid]="invalid('code')">
+          <label class="nf-label" for="product-code">Código<span class="req">*</span></label>
+          <input
+            id="product-code"
+            class="nf-input"
+            formControlName="code"
+            maxlength="64"
+            autocomplete="off"
+            placeholder="Ex.: TEC-001"
+            (blur)="normalizeCode()"
+          />
+          @if (invalid('code')) {
+            <span class="nf-error">Informe o código.</span>
+          } @else {
+            <span class="nf-hint">Único no catálogo, até 64 caracteres</span>
+          }
+        </div>
+
+        <div class="nf-field" [class.invalid]="invalid('description')">
+          <label class="nf-label" for="product-description">Descrição<span class="req">*</span></label>
+          <input
+            id="product-description"
+            class="nf-input"
+            formControlName="description"
+            maxlength="200"
+            autocomplete="off"
+            placeholder="Ex.: Teclado mecânico"
+          />
+          @if (invalid('description')) {
+            <span class="nf-error">Informe a descrição.</span>
+          } @else {
+            <span class="nf-hint">{{ form.controls.description.value.length }}/200</span>
+          }
+        </div>
+
+        <div class="nf-field checkbox-field">
+          <label class="check">
+            <input type="checkbox" formControlName="tracksStock" />
+            <span>Controla estoque</span>
+          </label>
+          <span class="nf-hint">
+            Desmarcado, o produto entra nas notas sem validar nem movimentar saldo —
+            use para serviços e itens sob encomenda.
+          </span>
+        </div>
+
+        @if (form.controls.tracksStock.value) {
+          <div class="nf-field balance" [class.invalid]="invalid('balance')">
+            <label class="nf-label" for="product-balance">Saldo inicial<span class="req">*</span></label>
+            <input
+              id="product-balance"
+              class="nf-input"
+              type="number"
+              formControlName="balance"
+              inputmode="numeric"
+              min="0"
+              max="999999999"
+            />
+            @if (invalid('balance')) {
+              <span class="nf-error">Use um inteiro entre 0 e 999.999.999.</span>
+            } @else {
+              <span class="nf-hint">Inteiro maior ou igual a zero</span>
+            }
+          </div>
+        }
+
+        @if (error) {
+          <app-inline-alert
+            tone="error"
+            [title]="error.title"
+            [message]="error.message"
+            [traceId]="error.traceId"
+          />
+        }
+
+        <button type="submit" hidden></button>
+      </form>
+    </app-modal-shell>
+  `,
+  styles: `
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-4);
+    }
+
+    .balance {
+      max-width: 200px;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      color: var(--n-700);
+      font-size: var(--fs-md);
+      gap: var(--sp-2);
+      cursor: pointer;
+    }
+
+    .check input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--brand-600);
+    }
+
+    .checkbox-field {
+      gap: var(--sp-1);
+    }
+  `,
+  changeDetection: ChangeDetectionStrategy.Default,
+})
+export class ProductFormDialog {
+  private readonly dialogRef = inject<MatDialogRef<ProductFormDialog, Product>>(MatDialogRef);
+  private readonly formBuilder = inject(FormBuilder);
+  private readonly productService = inject(ProductService);
+  private readonly apiError = inject(ApiErrorService);
+  private readonly notification = inject(NotificationService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly form = this.formBuilder.nonNullable.group({
+    code: ['', [Validators.required, Validators.maxLength(64)]],
+    description: ['', [Validators.required, Validators.maxLength(200)]],
+    tracksStock: [true],
+    balance: [
+      0,
+      [
+        Validators.required,
+        Validators.min(0),
+        Validators.max(999_999_999),
+        Validators.pattern(/^\d+$/),
+      ],
+    ],
+  });
+
+  saving = false;
+  error: UiError | null = null;
+
+  /** Vermelho só depois de tocar no campo. */
+  invalid(name: 'code' | 'description' | 'balance'): boolean {
+    const control = this.form.controls[name];
+    return control.invalid && (control.touched || control.dirty);
+  }
+
+  close(): void {
+    if (!this.saving) this.dialogRef.close();
+  }
+
+  normalizeCode(): void {
+    this.form.controls.code.setValue(this.form.controls.code.value.trim().toUpperCase());
+  }
+
+  submit(): void {
+    this.normalizeCode();
+    this.form.controls.description.setValue(this.form.controls.description.value.trim());
+    this.form.markAllAsTouched();
+
+    if (this.form.invalid || this.saving) return;
+
+    const raw = this.form.getRawValue();
+    this.saving = true;
+    this.error = null;
+    this.productService
+      .create({
+        code: raw.code,
+        description: raw.description,
+        // Sem controle de estoque o saldo não existe como conceito.
+        balance: raw.tracksStock ? raw.balance : 0,
+        tracksStock: raw.tracksStock,
+      })
+      .pipe(
+        finalize(() => (this.saving = false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (product) => {
+          this.notification.success(
+            'Produto cadastrado',
+            `${product.code} — ${product.description}`,
+          );
+          this.dialogRef.close(product);
+        },
+        error: (error: unknown) => (this.error = this.apiError.from(error)),
+      });
+  }
+}

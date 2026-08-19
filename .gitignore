@@ -1,0 +1,40 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+secrets.json
+
+# .NET
+**/bin/
+**/obj/
+**/TestResults/
+*.user
+*.suo
+coverage/
+StrykerOutput/
+
+# Angular / Node
+**/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# IDE / OS
+.idea/
+.vs/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Runtime data
+tmp/
+output/
+*.log
+
+
+# Documento de handoff interno — contém o enunciado proprietário do desafio,
+# contato de RH e histórico de revisão. Nunca deve ir ao repositório público.
+CLAUDE_CODE_HANDOFF.md

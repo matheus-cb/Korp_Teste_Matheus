@@ -1,0 +1,573 @@
+/* =========================================================================
+   NotaFlow — sistema de design
+   Estrutura de ERP clássica com execução moderna. Os neutros são frios e
+   dessaturados; a cor de marca é reservada a ações primárias e seleção.
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* --- Marca: exclusiva de ação primária, seleção e foco --- */
+  --brand-700: #0b4b43;
+  --brand-600: #0f5a50;
+  --brand-500: #177065;
+  --brand-50: #edf4f2;
+
+  /* --- Chrome estrutural: barras, cabeçalhos de grid, avatares --- */
+  --chrome-900: #1b2732;
+  --chrome-800: #243342;
+  --chrome-700: #2b3d4e;
+
+  /* --- Neutros frios --- */
+  --n-0: #ffffff;
+  --n-25: #fbfcfd;
+  --n-50: #f6f8f9;
+  --n-100: #eceff2;
+  --n-200: #dde3e8;
+  --n-300: #c5cdd5;
+  --n-400: #95a0aa;
+  --n-500: #68737e;
+  --n-600: #4b555f;
+  --n-700: #343d46;
+  --n-900: #141a20;
+
+  /* --- Estado do domínio: cor só onde há ação pendente.
+         "Fechada" é neutra de propósito: já concluiu e não disputa atenção. --- */
+  --st-open-bg: #e8f1fc;
+  --st-open-fg: #155aa8;
+  --st-open-dot: #2b7cd3;
+  --st-pending-bg: #fdf3e0;
+  --st-pending-fg: #8a5a11;
+  --st-pending-dot: #d9911f;
+  --st-rejected-bg: #fdeceb;
+  --st-rejected-fg: #9b2c20;
+  --st-rejected-dot: #d0453a;
+  --st-done-bg: #eaeef1;
+  --st-done-fg: #4b555f;
+  --st-done-dot: #95a0aa;
+
+  /* --- Tipografia --- */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 19px;
+  --fs-2xl: 24px;
+
+  /* --- Espaçamento, base 4 --- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* --- Raio: quase zero nas superfícies de dado --- */
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-pill: 14px;
+
+  /* --- Estrutura e densidade (confortável) --- */
+  --row-h: 44px;
+  --control-h: 30px;
+  --bar-h: 48px;
+  --bar-mod-h: 52px;
+  --side-w: 236px;
+  --side-w-collapsed: 52px;
+  --agent-w: 326px;
+
+  --shadow-sm: 0 1px 2px rgb(20 26 32 / 6%), 0 1px 3px rgb(20 26 32 / 4%);
+  --shadow-md: 0 4px 14px rgb(20 26 32 / 10%);
+  --shadow-pop: -10px 0 28px rgb(20 26 32 / 20%);
+
+  /* --- Aliases dos tokens antigos.
+         Mantidos para o refactor ser incremental: os SCSS de componente ainda
+         não migrados continuam funcionando enquanto apontam para a paleta nova. --- */
+  --ink: var(--n-900);
+  --muted: var(--n-500);
+  --line: var(--n-200);
+  --surface: var(--n-0);
+  --surface-soft: var(--n-50);
+  --primary: var(--brand-600);
+  --primary-hover: var(--brand-700);
+  --danger: var(--st-rejected-fg);
+
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--n-100);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  color: var(--n-700);
+  background: var(--n-100);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+}
+
+/* =========================================================================
+   Angular Material — rebrand dos tokens M3
+
+   O tema pré-compilado carregado pelo angular.json é o azure-blue, então sem
+   isto todo componente Material sai azul com cantos em pílula. Sobrescrever os
+   tokens de sistema rebranda formulários, diálogos e snackbars de uma vez, sem
+   recompilar tema em SCSS.
+   ========================================================================= */
+
+:root {
+  --mat-sys-primary: #0f5a50;
+  --mat-sys-on-primary: #ffffff;
+  --mat-sys-primary-container: #edf4f2;
+  --mat-sys-on-primary-container: #0b4b43;
+  --mat-sys-error: #9b2c20;
+  --mat-sys-outline: #c5cdd5;
+  --mat-sys-outline-variant: #dde3e8;
+
+  /* Cantos: o M3 usa 28px em diálogo e pílula em botão; aqui é ERP. */
+  --mat-sys-corner-extra-small: 3px;
+  --mat-sys-corner-small: 3px;
+  --mat-sys-corner-medium: 4px;
+  --mat-sys-corner-large: 4px;
+  --mat-sys-corner-extra-large: 6px;
+  --mat-sys-corner-full: 4px;
+}
+
+/*
+ * Diálogos do NotaFlow: a casca (app-modal-shell) controla cabeçalho, corpo e
+ * rodapé, então o contêiner do Material entra sem padding e sem cantos moles.
+ */
+.nf-dialog .mat-mdc-dialog-surface {
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-md);
+}
+
+.nf-dialog .mat-mdc-dialog-container .mdc-dialog__surface {
+  box-shadow: 0 12px 40px rgb(20 26 32 / 22%);
+}
+
+/* =========================================================================
+   Botões
+
+   Métrica própria: 30px de altura e raio de 3px. O botão do Material tem
+   40px e cantos em pílula, o que destoa de uma barra de ações de ERP.
+   ========================================================================= */
+
+.nf-btn {
+  display: inline-flex;
+  height: var(--control-h);
+  align-items: center;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-sm);
+  color: var(--n-700);
+  background: var(--n-0);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  font-weight: 560;
+  gap: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nf-btn:hover:not(:disabled) {
+  background: var(--n-50);
+}
+
+.nf-btn:disabled {
+  color: var(--n-400);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.nf-btn--primary {
+  border-color: var(--brand-600);
+  color: #ffffff;
+  background: var(--brand-600);
+}
+
+.nf-btn--primary:hover:not(:disabled) {
+  border-color: var(--brand-700);
+  background: var(--brand-700);
+}
+
+.nf-btn--primary:disabled {
+  color: #ffffff;
+  background: var(--brand-600);
+}
+
+.nf-btn--quiet {
+  border-color: transparent;
+  color: var(--n-600);
+  background: transparent;
+}
+
+.nf-btn--icon {
+  width: var(--control-h);
+  padding: 0;
+  justify-content: center;
+  color: var(--n-500);
+}
+
+.nf-btn mat-icon,
+.nf-btn .mat-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+
+.nf-btn mat-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* =========================================================================
+   Campos de formulário
+
+   Métrica própria, pelo mesmo motivo dos botões: o mat-form-field tem ~56px
+   de altura e rótulo flutuante, o que destoa de controles de 32px e faz o
+   mesmo rótulo aparecer em dois tamanhos conforme o campo tenha valor ou não.
+   ========================================================================= */
+
+.nf-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nf-label {
+  color: var(--n-600);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.nf-label .req {
+  margin-left: 2px;
+  color: var(--st-rejected-fg);
+}
+
+.nf-input,
+.nf-select,
+.nf-textarea {
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-sm);
+  color: var(--n-800);
+  background: var(--n-0);
+  font-family: inherit;
+  font-size: var(--fs-md);
+}
+
+.nf-textarea {
+  height: auto;
+  padding: var(--sp-2);
+  resize: vertical;
+}
+
+.nf-select {
+  padding-right: var(--sp-1);
+  cursor: pointer;
+}
+
+.nf-input::placeholder,
+.nf-textarea::placeholder {
+  color: var(--n-400);
+}
+
+.nf-input:focus,
+.nf-select:focus,
+.nf-textarea:focus {
+  border-color: var(--brand-500);
+  outline: 2px solid var(--brand-50);
+  outline-offset: 0;
+}
+
+.nf-input:disabled,
+.nf-select:disabled {
+  color: var(--n-500);
+  background: var(--n-50);
+  cursor: not-allowed;
+}
+
+/* Erro só depois que o usuário interagiu — campo obrigatório não nasce vermelho. */
+.nf-field.invalid .nf-input,
+.nf-field.invalid .nf-select,
+.nf-field.invalid .nf-textarea {
+  border-color: var(--st-rejected-dot);
+}
+
+.nf-hint {
+  color: var(--n-500);
+  font-size: var(--fs-xs);
+}
+
+.nf-error {
+  color: var(--st-rejected-fg);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+/* =========================================================================
+   Estado do domínio
+   ========================================================================= */
+
+.status-badge {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  height: 21px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  font-weight: 620;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* O ponto tem cor própria, mais saturada que o texto: é ele que carrega a
+   leitura de estado à distância, num grid com muitas linhas. */
+.status-badge::before {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--dot);
+  content: "";
+}
+
+.status-open {
+  --dot: var(--st-open-dot);
+
+  color: var(--st-open-fg);
+  background: var(--st-open-bg);
+}
+
+.status-pending {
+  --dot: var(--st-pending-dot);
+
+  color: var(--st-pending-fg);
+  background: var(--st-pending-bg);
+}
+
+.status-rejected {
+  --dot: var(--st-rejected-dot);
+
+  color: var(--st-rejected-fg);
+  background: var(--st-rejected-bg);
+}
+
+.status-done {
+  --dot: var(--st-done-dot);
+
+  color: var(--st-done-fg);
+  background: var(--st-done-bg);
+}
+
+/* =========================================================================
+   Utilitários
+   ========================================================================= */
+
+.numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--n-500);
+}
+
+.full-width {
+  width: 100%;
+}
+
+.code {
+  display: inline-block;
+  color: var(--n-600);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.button-spinner {
+  display: inline-block !important;
+  margin-right: 0.45rem;
+  vertical-align: middle;
+}
+
+/* =========================================================================
+   Superfícies legadas — ainda usadas pelas telas não migradas.
+   Repontadas para a paleta nova para não haver duas identidades na tela.
+   ========================================================================= */
+
+.surface-card {
+  overflow: hidden;
+  border: 1px solid var(--n-200);
+  border-radius: var(--r-md);
+  background: var(--n-0);
+}
+
+.card-header {
+  display: flex;
+  gap: var(--sp-4);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--n-200);
+  background: var(--n-25);
+}
+
+.card-header h2 {
+  margin: 0;
+  color: var(--n-900);
+  font-size: var(--fs-md);
+  font-weight: 640;
+  letter-spacing: normal;
+}
+
+.card-header p {
+  margin: 0.15rem 0 0;
+  color: var(--n-500);
+  font-size: var(--fs-sm);
+}
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th {
+  height: 32px;
+  padding: 0 var(--sp-4);
+  border-bottom: 1px solid var(--n-200);
+  color: #eef2f5;
+  background: var(--chrome-800);
+  font-size: var(--fs-sm);
+  font-weight: 620;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.data-table td {
+  height: var(--row-h);
+  padding: 0 var(--sp-4);
+  border-bottom: 1px solid var(--n-100);
+  color: var(--n-700);
+  font-size: var(--fs-md);
+  vertical-align: middle;
+}
+
+.data-table tbody tr:nth-child(even) td {
+  background: var(--n-25);
+}
+
+.data-table tbody tr:hover td {
+  background: var(--brand-50);
+}
+
+.data-table tfoot td {
+  height: 34px;
+  border-top: 1px solid var(--n-200);
+  color: #ffffff;
+  background: var(--chrome-800);
+  font-weight: 640;
+}
+
+/* =========================================================================
+   Angular Material
+   ========================================================================= */
+
+/* O toast desenha a própria superfície; o contêiner do Material entra neutro. */
+.nf-toast .mdc-snackbar__surface {
+  min-width: auto !important;
+  padding: 0 !important;
+  border-radius: var(--r-md) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.nf-toast .mat-mdc-snack-bar-label {
+  padding: 0 !important;
+}
+
+.mat-mdc-form-field-subscript-wrapper {
+  min-height: 1.15rem;
+}
+
+/* =========================================================================
+   Impressão — o PDF é gerado no servidor; isto cobre Ctrl+P na tela.
+   Os seletores acompanham o shell novo (faixas global e de módulo).
+   ========================================================================= */
+
+@media print {
+  app-shell .app-sidebar,
+  app-shell .bar-global,
+  app-shell .bar-module,
+  app-shell .agent-panel,
+  app-shell footer,
+  .no-print {
+    display: none !important;
+  }
+
+  app-shell .app-main {
+    width: 100% !important;
+    min-height: auto !important;
+    padding: 0 !important;
+  }
+
+  .surface-card {
+    border: 0;
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

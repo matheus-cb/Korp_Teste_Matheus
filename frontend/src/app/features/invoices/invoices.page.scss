@@ -1,0 +1,176 @@
+:host {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--n-200);
+  background: var(--n-25);
+  gap: var(--sp-2);
+}
+
+.search {
+  display: flex;
+  height: 29px;
+  min-width: 220px;
+  align-items: center;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-sm);
+  background: var(--n-0);
+  gap: 6px;
+}
+
+.search mat-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--n-400);
+  font-size: 14px;
+}
+
+.search mat-icon svg,
+.pager mat-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--n-700);
+  font-size: var(--fs-sm);
+  outline: none;
+}
+
+/* Segmentado Todas / Abertas / Fechadas */
+.seg {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-sm);
+  background: var(--n-0);
+}
+
+.seg button {
+  height: 29px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-left: 1px solid var(--n-200);
+  color: var(--n-600);
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.seg button:first-child {
+  border-left: 0;
+}
+
+.seg button:hover:not(.on) {
+  background: var(--n-50);
+}
+
+.seg button.on {
+  color: #ffffff;
+  background: var(--chrome-800);
+  font-weight: 580;
+}
+
+.period input {
+  height: 29px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-sm);
+  background: var(--n-0);
+  color: var(--n-600);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+}
+
+.count {
+  margin-left: auto;
+  color: var(--n-500);
+  font-size: var(--fs-sm);
+}
+
+.state-padding {
+  padding: var(--sp-4);
+}
+
+/* Paginação: fora da área de rolagem do grid, nunca coberta pelo assistente. */
+.pager {
+  display: flex;
+  align-items: center;
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--n-200);
+  background: var(--n-0);
+  color: var(--n-500);
+  font-size: var(--fs-sm);
+  flex: none;
+  gap: var(--sp-2);
+}
+
+.pager > span:first-child {
+  margin-right: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.page-size {
+  display: flex;
+  align-items: center;
+  color: var(--n-500);
+  gap: 6px;
+}
+
+.page-size select {
+  height: 26px;
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-sm);
+  background: var(--n-0);
+  color: var(--n-700);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+}
+
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Colunas responsivas: em tablet some Fechamento; em mobile ficam
+   Número, Itens e Situação. */
+@media (width <= 1023px) {
+  :host ::ng-deep .ag-header-cell[col-id='fechamento'],
+  :host ::ng-deep .ag-cell[col-id='fechamento'] {
+    display: none;
+  }
+}
+
+@media (width <= 767px) {
+  :host ::ng-deep .ag-header-cell[col-id='createdAt'],
+  :host ::ng-deep .ag-cell[col-id='createdAt'] {
+    display: none;
+  }
+
+  .toolbar .period {
+    display: none;
+  }
+
+  .count {
+    margin-left: 0;
+  }
+}

@@ -1,0 +1,120 @@
+name: quality-gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore NotaFlow.slnx
+      - run: dotnet format NotaFlow.slnx --verify-no-changes --no-restore
+      - run: dotnet build NotaFlow.slnx --configuration Release --no-restore
+      - run: dotnet test NotaFlow.slnx --configuration Release --no-build --collect:"XPlat Code Coverage"
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build:production
+
+  compose:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    env:
+      INTERNAL_SERVICE_TOKEN: ci-only-randomized-at-runtime-not-a-production-secret
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - run: docker compose config --quiet
+      - run: docker compose up --detach --build --wait
+      - name: Smoke test through the frontend proxy
+        run: |
+          base=http://127.0.0.1:4200
+          curl --fail --retry 5 --retry-connrefused $base/healthz
+
+          # As rotas de negócio exigem sessão; o smoke faz login como o
+          # frontend faz e reaproveita o token nas chamadas seguintes.
+          login_json=$(curl --fail --silent --show-error \
+            -H 'Content-Type: application/json' \
+            -d '{"userName":"operador","password":"notaflow123"}' \
+            $base/billing-api/api/auth/login)
+          token=$(jq -er '.token' <<<"$login_json")
+          auth="Authorization: Bearer $token"
+
+          # Sem sessão a API precisa recusar: a guarda é do servidor.
+          anon_status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            $base/billing-api/api/invoices)
+          test "$anon_status" = '401'
+
+          product_json=$(curl --fail --silent --show-error \
+            -H "$auth" -H 'Content-Type: application/json' \
+            -d '{"code":"CI-SMOKE","description":"Produto de integração","balance":3,"tracksStock":true}' \
+            $base/inventory-api/api/products)
+          product_id=$(jq -er '.id' <<<"$product_json")
+
+          invoice_json=$(curl --fail --silent --show-error \
+            -H "$auth" -H 'Content-Type: application/json' \
+            -d "{\"items\":[{\"productId\":\"$product_id\",\"quantity\":2}]}" \
+            $base/billing-api/api/invoices/)
+          invoice_id=$(jq -er '.id' <<<"$invoice_json")
+
+          closed_json=$(curl --fail --silent --show-error \
+            -H "$auth" -X POST $base/billing-api/api/invoices/$invoice_id/close)
+          test "$(jq -r '.status' <<<"$closed_json")" = 'Closed'
+          # Autoria: a nota tem de registrar quem confirmou o fechamento.
+          test "$(jq -r '.createdBy' <<<"$closed_json")" = 'Operador de Faturamento'
+
+          product_after=$(curl --fail --silent --show-error \
+            -H "$auth" $base/inventory-api/api/products/$product_id)
+          test "$(jq -r '.balance' <<<"$product_after")" = '1'
+
+          # Produto sem controle de estoque não movimenta saldo.
+          service_json=$(curl --fail --silent --show-error \
+            -H "$auth" -H 'Content-Type: application/json' \
+            -d '{"code":"CI-SERVICO","description":"Serviço","balance":0,"tracksStock":false}' \
+            $base/inventory-api/api/products)
+          service_id=$(jq -er '.id' <<<"$service_json")
+          service_invoice=$(curl --fail --silent --show-error \
+            -H "$auth" -H 'Content-Type: application/json' \
+            -d "{\"items\":[{\"productId\":\"$service_id\",\"quantity\":50}]}" \
+            $base/billing-api/api/invoices/)
+          service_invoice_id=$(jq -er '.id' <<<"$service_invoice")
+          curl --fail --silent --show-error -H "$auth" \
+            -X POST $base/billing-api/api/invoices/$service_invoice_id/close > /dev/null
+          service_after=$(curl --fail --silent --show-error \
+            -H "$auth" $base/inventory-api/api/products/$service_id)
+          test "$(jq -r '.balance' <<<"$service_after")" = '0'
+
+          curl --fail --output /dev/null -H "$auth" \
+            $base/billing-api/api/invoices/$invoice_id/pdf
+
+          # Rotas internas do Inventory não podem vazar pelo edge.
+          for internal in /inventory-api/api/stock/debits /inventory-api/mcp; do
+            status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              -X POST -H 'Content-Type: application/json' -d '{}' "$base$internal")
+            test "$status" = '404'
+          done
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop Compose stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans

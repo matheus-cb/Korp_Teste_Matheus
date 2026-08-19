@@ -1,0 +1,475 @@
+:host {
+  display: block;
+}
+
+.skip-link {
+  position: absolute;
+  z-index: 20;
+  top: var(--sp-2);
+  left: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  transform: translateY(-200%);
+  border-radius: var(--r-sm);
+  color: #ffffff;
+  background: var(--chrome-900);
+  font-size: var(--fs-sm);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.shell {
+  height: 100dvh;
+  background: var(--n-100);
+}
+
+/* =========================================================================
+   Sidebar — altura total, sem barra superior global atravessando a tela
+   ========================================================================= */
+
+.app-sidebar {
+  display: flex;
+  width: var(--side-w);
+  flex-direction: column;
+  border-right: 1px solid var(--n-200);
+  background: var(--n-50);
+}
+
+/*
+ * O mat-sidenav envolve o conteúdo num contêiner interno com rolagem própria.
+ * Sem torná-lo flex de altura total, o rodapé com a versão sobe junto com a
+ * lista de módulos em vez de ficar colado embaixo.
+ */
+.app-sidebar ::ng-deep .mat-drawer-inner-container {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.shell.rail .app-sidebar {
+  width: var(--side-w-collapsed);
+}
+
+.shell.rail .nav-text,
+.shell.rail .brand-name,
+.shell.rail .nav-label,
+.shell.rail .nav-search input,
+.shell.rail .sidebar-footer .env {
+  display: none;
+}
+
+.brand {
+  display: flex;
+  height: var(--bar-h);
+  align-items: center;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border-bottom: 1px solid var(--n-200);
+  gap: var(--sp-2);
+}
+
+.brand-link {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-2);
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: var(--r-sm);
+  color: #ffffff;
+  background: var(--brand-600);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  place-items: center;
+}
+
+.brand-name {
+  overflow: hidden;
+  color: var(--n-900);
+  font-size: var(--fs-md);
+  font-weight: 670;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.brand-name small {
+  display: block;
+  color: var(--n-400);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.collapse {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--r-sm);
+  color: var(--n-400);
+  background: transparent;
+  cursor: pointer;
+  place-items: center;
+}
+
+.collapse:hover {
+  color: var(--n-700);
+  background: var(--n-100);
+}
+
+.shell.rail .brand {
+  padding: 0;
+  justify-content: center;
+}
+
+.shell.rail .collapse {
+  margin-left: 0;
+}
+
+/* --- Busca de navegação (módulos e funções, não dados) --- */
+
+.nav-search {
+  display: flex;
+  height: var(--control-h);
+  align-items: center;
+  margin: var(--sp-2) var(--sp-2) 0;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--n-200);
+  border-radius: var(--r-sm);
+  background: var(--n-0);
+  gap: var(--sp-2);
+}
+
+.nav-search mat-icon {
+  color: var(--n-400);
+}
+
+.nav-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--n-700);
+  font-size: var(--fs-sm);
+  outline: none;
+}
+
+.shell.rail .nav-search {
+  justify-content: center;
+  padding: 0;
+}
+
+/* --- Navegação --- */
+
+.nav {
+  overflow-y: auto;
+  flex: 1;
+  padding: var(--sp-2) var(--sp-2) var(--sp-4);
+}
+
+.nav-label {
+  margin: var(--sp-4) 0 var(--sp-1);
+  padding: 0 var(--sp-2);
+  color: var(--n-400);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.nav-group {
+  display: flex;
+  height: 30px;
+  align-items: center;
+  margin: 0;
+  padding: 0 var(--sp-2);
+  color: var(--n-600);
+  font-size: var(--fs-md);
+  font-weight: 620;
+  gap: var(--sp-2);
+}
+
+.nav-group mat-icon {
+  color: var(--n-400);
+}
+
+.nav-item {
+  display: flex;
+  height: 30px;
+  align-items: center;
+  padding: 0 var(--sp-2);
+  border-left: 2px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--n-600);
+  font-size: var(--fs-md);
+  gap: var(--sp-2);
+  text-decoration: none;
+}
+
+.nav-item mat-icon {
+  flex: none;
+  color: var(--n-400);
+}
+
+.nav-item:hover {
+  background: var(--n-100);
+}
+
+.nav-item.active {
+  border-left-color: var(--brand-600);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  color: var(--brand-700);
+  background: var(--brand-50);
+  font-weight: 620;
+}
+
+.nav-item.active mat-icon {
+  color: var(--brand-600);
+}
+
+.nav-child {
+  padding-left: calc(var(--sp-2) + 26px);
+}
+
+.shell.rail .nav-child {
+  padding-left: var(--sp-2);
+}
+
+.shell.rail .nav-item {
+  justify-content: center;
+  padding: 0;
+}
+
+/*
+ * Em trilha o rótulo do grupo não cabe e o ícone dele seria confundido com um
+ * item clicável; vira um separador fino.
+ */
+.shell.rail .nav-group {
+  height: 1px;
+  margin: var(--sp-2) var(--sp-2);
+  padding: 0;
+  border-top: 1px solid var(--n-200);
+  overflow: hidden;
+}
+
+.nav-empty {
+  padding: var(--sp-3) var(--sp-2);
+  color: var(--n-500);
+  font-size: var(--fs-sm);
+}
+
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--n-200);
+  color: var(--n-400);
+  font-size: var(--fs-xs);
+  gap: var(--sp-2);
+}
+
+.shell.rail .sidebar-footer {
+  justify-content: center;
+  padding: var(--sp-2) 0;
+}
+
+.sidebar-footer .env {
+  padding: 1px 5px;
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-sm);
+  color: var(--n-500);
+  font-weight: 660;
+}
+
+/* =========================================================================
+   Conteúdo — faixa global persistente + área da página
+   ========================================================================= */
+
+.app-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  background: var(--n-0);
+}
+
+.bar-global {
+  display: flex;
+  height: var(--bar-h);
+  align-items: center;
+  padding: 0 var(--sp-3);
+  border-bottom: 1px solid var(--n-200);
+  background: var(--n-50);
+  gap: var(--sp-2);
+}
+
+.bar-global-right {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  gap: var(--sp-2);
+}
+
+.assistant {
+  display: inline-flex;
+  height: var(--control-h);
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--brand-600);
+  border-radius: var(--r-sm);
+  color: var(--brand-700);
+  background: var(--brand-50);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  font-weight: 620;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.assistant:hover {
+  background: #e3eeeb;
+}
+
+/*
+ * Área de trabalho: conteúdo e painel do assistente lado a lado. O painel é
+ * irmão do conteúdo, nunca filho — assim ele empurra o grid em vez de flutuar
+ * por cima da paginação.
+ */
+.work-area {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+/*
+ * Coluna de conteúdo em flex: telas de grid preenchem a altura e rolam por
+ * dentro do próprio grid; telas de leitura declaram o próprio overflow.
+ */
+.content {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Painel do assistente --- */
+
+.agent-slot {
+  width: var(--agent-w);
+  flex: none;
+}
+
+/* Abaixo de 1024px cobre o conteúdo, com escurecimento atrás. */
+.agent-slot.overlay {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(320px, 100%);
+  box-shadow: var(--shadow-pop);
+}
+
+.agent-slot.fullscreen {
+  width: 100%;
+}
+
+.agent-scrim {
+  position: absolute;
+  z-index: 3;
+  border: 0;
+  background: rgb(20 26 32 / 30%);
+  cursor: pointer;
+  inset: 0;
+}
+
+.assistant.on {
+  border-color: var(--brand-700);
+  color: #ffffff;
+  background: var(--brand-600);
+}
+
+.content:focus {
+  outline: none;
+}
+
+/* =========================================================================
+   Ícones
+   ========================================================================= */
+
+mat-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  line-height: 18px;
+}
+
+mat-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* --- Operador na faixa global --- */
+
+.user {
+  display: flex;
+  align-items: center;
+  color: var(--n-600);
+  font-size: var(--fs-sm);
+  gap: var(--sp-2);
+}
+
+.avatar {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #ffffff;
+  background: var(--chrome-800);
+  font-size: 10px;
+  font-weight: 680;
+  place-items: center;
+}
+
+.gsep {
+  width: 1px;
+  height: 22px;
+  background: var(--n-200);
+}
+
+.icon-btn {
+  display: grid;
+  width: var(--control-h);
+  height: var(--control-h);
+  border: 0;
+  border-radius: var(--r-sm);
+  color: var(--n-500);
+  background: transparent;
+  cursor: pointer;
+  place-items: center;
+}
+
+.icon-btn:hover {
+  color: var(--n-700);
+  background: var(--n-100);
+}
+
+@media (width <= 767px) {
+  .user-name {
+    display: none;
+  }
+}
