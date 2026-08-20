@@ -49,8 +49,6 @@ public sealed class ClaudeBridgeClient(
     // própria em vez de falhar em silêncio. A ponte roda o CLI em modo texto.
     public bool SupportsImage => false;
 
-    private const int MaxItens = 20;
-
     private const string RegrasComuns = """
         Você é o assistente do NotaFlow, um sistema de estoque e emissão de notas.
 
@@ -216,9 +214,9 @@ public sealed class ClaudeBridgeClient(
 
         await using var session = await toolSessionFactory.OpenAsync(cancellationToken);
 
-        // Catálogo e provas só são preenchidos a partir de resultados MCP.
-        var catalogo = new Dictionary<Guid, DescobertoProduto>();
-        var provas = new Dictionary<ChaveProva, ProvaDisponibilidade>();
+        // Toda a proveniência vive na evidência compartilhada: os dois provedores
+        // usam a mesma peça, então uma correção não entra só num deles.
+        var evidencia = new McpDraftEvidence();
         var passos = new List<AiDraftStep>();
         var ferramentasUsadas = new List<string>();
         var transcricao = new StringBuilder();
@@ -267,22 +265,20 @@ public sealed class ClaudeBridgeClient(
                 AiToolResult? resultado = null;
                 try
                 {
-                    if (!local)
-                        ValidarChamada(nome, argumentosNode, catalogo);
-
                     using var argumentos = JsonDocument.Parse(argumentosNode.ToJsonString());
+                    if (!local)
+                        evidencia.ValidateCall(nome, argumentos.RootElement);
+
                     var obtido = local
                         ? await localTools.CallAsync(nome, argumentos.RootElement, cancellationToken)
                         : await session.CallAsync(nome, argumentos.RootElement, cancellationToken);
 
-                    GarantirSucesso(nome, obtido);
-
-                    if (!local)
-                    {
-                        if (nome == "check_availability")
-                            ColherProvas(argumentos.RootElement, obtido.Content, provas);
-                        ColherProdutos(obtido.Content, catalogo);
-                    }
+                    // Ferramenta local responde sobre nota, e nota não é fonte de
+                    // produto válido para um rascunho novo.
+                    if (local)
+                        GarantirLocalOk(nome, obtido);
+                    else
+                        evidencia.Capture(nome, argumentos.RootElement, obtido);
 
                     resultado = obtido;
                 }
@@ -317,7 +313,7 @@ public sealed class ClaudeBridgeClient(
                 if (string.IsNullOrWhiteSpace(texto))
                     throw new InvalidOperationException("The bridge returned an empty answer.");
 
-                return new Execucao(texto.Trim(), false, null, [], [], [], passos, catalogo.Keys.ToHashSet(), ferramentasUsadas);
+                return new Execucao(texto.Trim(), false, null, [], [], [], passos, evidencia.DiscoveredProductIds, ferramentasUsadas);
             }
 
             if (acao == "propor_produto")
@@ -347,7 +343,7 @@ public sealed class ClaudeBridgeClient(
                     [],
                     [],
                     passos,
-                    catalogo.Keys.ToHashSet(),
+                    evidencia.DiscoveredProductIds,
                     ferramentasUsadas);
             }
 
@@ -357,7 +353,7 @@ public sealed class ClaudeBridgeClient(
 
             // rascunho e propor_nota passam pela MESMA validação. É o ponto em que
             // a proposta de escrita fica sujeita à prova de proveniência.
-            return MontarItens(decisao, propoe, catalogo, provas, passos, ferramentasUsadas);
+            return MontarItens(decisao, propoe, evidencia, passos, ferramentasUsadas);
         }
 
         throw new InvalidOperationException("The AI tool-call loop did not complete.");
@@ -438,93 +434,26 @@ public sealed class ClaudeBridgeClient(
         throw new InvalidOperationException("The bridge returned an unbalanced JSON object.");
     }
 
-    private static void ValidarChamada(
-        string nome,
-        JsonObject argumentos,
-        IReadOnlyDictionary<Guid, DescobertoProduto> catalogo)
-    {
-        switch (nome)
-        {
-            case "search_products":
-            case "list_products":
-            case "list_movements":
-                break;
-
-            case "get_product":
-                // Sem isto o modelo pode sondar o catálogo por id.
-                var id = argumentos["productId"]?.GetValue<string>();
-                if (!Guid.TryParse(id, out var guid) || !catalogo.ContainsKey(guid))
-                    throw new InvalidOperationException("get_product requires a product id already discovered.");
-                break;
-
-            case "check_availability":
-                var itens = argumentos["items"] as JsonArray
-                    ?? throw new InvalidOperationException("check_availability requires an items array.");
-                if (itens.Count == 0 || itens.Count > MaxItens)
-                    throw new InvalidOperationException("check_availability item count is out of range.");
-                break;
-
-            default:
-                throw new InvalidOperationException($"Tool '{nome}' is not allow-listed.");
-        }
-    }
-
     private static Execucao MontarItens(
         JsonObject decisao,
         bool propoeNota,
-        IReadOnlyDictionary<Guid, DescobertoProduto> catalogo,
-        IReadOnlyDictionary<ChaveProva, ProvaDisponibilidade> provas,
+        McpDraftEvidence evidencia,
         List<AiDraftStep> passos,
         List<string> ferramentas)
     {
-        var itensCrus = decisao["itens"] as JsonArray ?? [];
-        var analisados = new List<ItemAnalisado>();
-
-        foreach (var cru in itensCrus)
-        {
-            var id = cru?["productId"]?.GetValue<string>();
-            var quantidade = cru?["quantidade"]?.GetValue<int>() ?? 0;
-
-            // A defesa central: o id precisa ter vindo de um resultado MCP.
-            if (!Guid.TryParse(id, out var guid) || !catalogo.TryGetValue(guid, out var produto))
-                throw new InvalidOperationException("The model returned a product that was not discovered through MCP.");
-            if (quantidade <= 0)
-                throw new InvalidOperationException("The model returned a non-positive quantity.");
-
-            analisados.Add(new ItemAnalisado(guid, produto, quantidade));
-        }
-
-        if (analisados.Count > MaxItens)
-            throw new InvalidOperationException("The draft exceeds the maximum number of items.");
-
-        var quantidadeFinal = analisados
-            .GroupBy(x => x.ProductId)
-            .ToDictionary(g => g.Key, g => checked(g.Sum(x => x.Quantidade)));
-
-        var disponibilidade = new Dictionary<Guid, string>();
-        foreach (var (productId, quantidade) in quantidadeFinal)
-        {
-            // Disponibilidade vem da prova do servidor, nunca do que o modelo
-            // alegou. Sem prova para a quantidade agregada, reprova.
-            if (!provas.TryGetValue(new ChaveProva(productId, quantidade), out var prova))
+        var propostos = (decisao["itens"] as JsonArray ?? [])
+            .Select(cru =>
             {
-                throw new InvalidOperationException(
-                    "Every final product and aggregate quantity requires a successful MCP availability proof.");
-            }
-
-            disponibilidade[productId] = prova.Existe
-                ? prova.SaldoDisponivel >= quantidade ? "available" : "insufficient"
-                : "unknown";
-        }
-
-        var itens = analisados
-            .Select(x => new AiDraftModelItem(
-                x.ProductId,
-                x.Produto.Codigo,
-                x.Produto.Descricao,
-                x.Quantidade,
-                disponibilidade[x.ProductId]))
+                var id = cru?["productId"]?.GetValue<string>();
+                var quantidade = cru?["quantidade"]?.GetValue<int>() ?? 0;
+                if (!Guid.TryParse(id, out var guid))
+                    throw new InvalidOperationException("The model returned a product that was not discovered through MCP.");
+                return (ProductId: guid, Quantity: quantidade);
+            })
             .ToList();
+
+        // Rascunho e proposta de escrita passam pelo MESMO juiz.
+        var itens = evidencia.BuildItems(propostos);
 
         var naoResolvidos = (decisao["naoResolvidos"] as JsonArray ?? [])
             .Select(x => new UnresolvedDraftItem(
@@ -554,7 +483,7 @@ public sealed class ClaudeBridgeClient(
             naoResolvidos,
             avisos,
             passos,
-            catalogo.Keys.ToHashSet(),
+            evidencia.DiscoveredProductIds,
             ferramentas);
     }
 
@@ -570,98 +499,16 @@ public sealed class ClaudeBridgeClient(
         _ => ferramenta
     };
 
-    private static void GarantirSucesso(string ferramenta, AiToolResult resultado)
+    /// <summary>Ferramenta local não alimenta proveniência; só não pode ter falhado.</summary>
+    private static void GarantirLocalOk(string ferramenta, AiToolResult resultado)
     {
         if (resultado.IsError)
-            throw new InvalidOperationException($"MCP tool '{ferramenta}' returned an error.");
+            throw new InvalidOperationException($"Local tool '{ferramenta}' returned an error.");
         if (resultado.Content.ValueKind != JsonValueKind.Object)
-            throw new InvalidOperationException($"MCP tool '{ferramenta}' returned an invalid result.");
-        if (resultado.Content.TryGetProperty("errorCode", out var erro) && erro.ValueKind != JsonValueKind.Null)
-            throw new InvalidOperationException($"MCP tool '{ferramenta}' returned a semantic error.");
+            throw new InvalidOperationException($"Local tool '{ferramenta}' returned an invalid result.");
     }
 
-    private static void ColherProdutos(JsonElement elemento, IDictionary<Guid, DescobertoProduto> catalogo)
-    {
-        if (elemento.ValueKind == JsonValueKind.Object)
-        {
-            Guid id = default;
-            string? codigo = null;
-            string? descricao = null;
 
-            foreach (var propriedade in elemento.EnumerateObject())
-            {
-                if ((propriedade.Name.Equals("id", StringComparison.OrdinalIgnoreCase) ||
-                     propriedade.Name.Equals("productId", StringComparison.OrdinalIgnoreCase)) &&
-                    propriedade.Value.ValueKind == JsonValueKind.String)
-                {
-                    if (!Guid.TryParse(propriedade.Value.GetString(), out id)) id = Guid.Empty;
-                }
-                else if (propriedade.Name.Equals("code", StringComparison.OrdinalIgnoreCase))
-                {
-                    codigo = propriedade.Value.GetString();
-                }
-                else if (propriedade.Name.Equals("description", StringComparison.OrdinalIgnoreCase))
-                {
-                    descricao = propriedade.Value.GetString();
-                }
 
-                ColherProdutos(propriedade.Value, catalogo);
-            }
 
-            if (id != Guid.Empty && !string.IsNullOrWhiteSpace(codigo) && !string.IsNullOrWhiteSpace(descricao))
-                catalogo[id] = new DescobertoProduto(id, codigo, descricao);
-        }
-        else if (elemento.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var filho in elemento.EnumerateArray())
-                ColherProdutos(filho, catalogo);
-        }
-    }
-
-    private static void ColherProvas(
-        JsonElement argumentos,
-        JsonElement conteudo,
-        IDictionary<ChaveProva, ProvaDisponibilidade> provas)
-    {
-        var pedidos = argumentos.GetProperty("items")
-            .EnumerateArray()
-            .ToDictionary(
-                x => Guid.Parse(x.GetProperty("productId").GetString()!),
-                x => x.GetProperty("quantity").GetInt32());
-
-        if (!conteudo.TryGetProperty("items", out var retornados) ||
-            retornados.ValueKind != JsonValueKind.Array ||
-            retornados.GetArrayLength() != pedidos.Count)
-        {
-            throw new InvalidOperationException("MCP availability returned an incomplete result.");
-        }
-
-        foreach (var item in retornados.EnumerateArray())
-        {
-            if (!Guid.TryParse(item.GetProperty("productId").GetString(), out var productId) ||
-                !pedidos.TryGetValue(productId, out var esperada))
-            {
-                throw new InvalidOperationException("MCP availability returned an unexpected product.");
-            }
-
-            var solicitada = item.GetProperty("requestedQuantity").GetInt32();
-            var saldo = item.GetProperty("availableBalance").GetInt32();
-            var existe = item.GetProperty("exists").GetBoolean();
-            var disponivel = item.GetProperty("isAvailable").GetBoolean();
-
-            // Coerência interna: o servidor não pode se contradizer.
-            if (solicitada != esperada || saldo < 0 || disponivel != (existe && saldo >= solicitada))
-                throw new InvalidOperationException("MCP availability returned inconsistent stock evidence.");
-
-            provas[new ChaveProva(productId, solicitada)] = new ProvaDisponibilidade(solicitada, saldo, existe);
-        }
-    }
-
-    private readonly record struct ChaveProva(Guid ProductId, int QuantidadeSolicitada);
-
-    private sealed record DescobertoProduto(Guid Id, string Codigo, string Descricao);
-
-    private sealed record ProvaDisponibilidade(int QuantidadeSolicitada, int SaldoDisponivel, bool Existe);
-
-    private sealed record ItemAnalisado(Guid ProductId, DescobertoProduto Produto, int Quantidade);
 }
