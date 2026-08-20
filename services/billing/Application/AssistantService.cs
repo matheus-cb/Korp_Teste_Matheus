@@ -24,7 +24,7 @@ public sealed record AssistantClientRequest(
 public sealed record AssistantClientReply(
     string Text,
     bool ProposesInvoice,
-    ProposedProduct? ProposedProduct,
+    IReadOnlyList<ProposedProduct>? ProposedProducts,
     IReadOnlyList<AiDraftModelItem> Items,
     IReadOnlyList<UnresolvedDraftItem> UnresolvedItems,
     IReadOnlyList<string> Warnings,
@@ -120,9 +120,9 @@ public sealed class AssistantService(
                 cancellationToken);
 
             ProposedActionResponse? action = null;
-            if (reply.ProposedProduct is { } produto)
+            if (reply.ProposedProducts is { Count: > 0 } produtos)
             {
-                action = actions.ProposeProduct(produto);
+                action = actions.ProposeProducts(produtos);
             }
             else if (reply.ProposesInvoice)
             {

@@ -77,13 +77,13 @@ public sealed class ProposedActionServiceTests
     {
         var (service, _) = Build();
 
-        var proposal = service.ProposeProduct(new ProposedProduct("  CAB-9  ", "  Cabo novo  ", 5, true));
+        var proposal = service.ProposeProducts([new ProposedProduct("  CAB-9  ", "  Cabo novo  ", 5, true)]);
 
         Assert.Equal("CreateProduct", proposal.Kind);
         Assert.False(string.IsNullOrWhiteSpace(proposal.Token));
         // Espaço nas pontas some antes de assinar: o token carrega o valor final.
-        Assert.Equal("CAB-9", proposal.Product!.Code);
-        Assert.Equal("Cabo novo", proposal.Product.Description);
+        Assert.Equal("CAB-9", Assert.Single(proposal.Products).Code);
+        Assert.Equal("Cabo novo", Assert.Single(proposal.Products).Description);
         Assert.Empty(proposal.Items);
     }
 
@@ -96,14 +96,14 @@ public sealed class ProposedActionServiceTests
         var (service, _) = Build();
 
         Assert.Throws<DomainValidationException>(() =>
-            service.ProposeProduct(new ProposedProduct(code, description, balance, true)));
+            service.ProposeProducts([new ProposedProduct(code, description, balance, true)]));
     }
 
     [Fact]
     public async Task Confirmar_produto_cria_no_inventory_e_nao_fecha_nota()
     {
         var (service, inventory) = Build();
-        var proposal = service.ProposeProduct(new ProposedProduct("CAB-9", "Cabo novo", 5, true));
+        var proposal = service.ProposeProducts([new ProposedProduct("CAB-9", "Cabo novo", 5, true)]);
 
         var result = await service.ConfirmAsync(proposal.Token, CancellationToken.None);
 
@@ -112,6 +112,51 @@ public sealed class ProposedActionServiceTests
         Assert.Equal("CAB-9", created.Code);
         Assert.Equal(5, created.Balance);
         Assert.False(result.Closed);
+    }
+
+    [Fact]
+    public async Task Lote_de_produtos_e_criado_de_uma_vez()
+    {
+        var (service, inventory) = Build();
+        var proposal = service.ProposeProducts([
+            new ProposedProduct("CAB-1", "Cabo", 5, true),
+            new ProposedProduct("TEC-1", "Teclado", 2, true),
+            new ProposedProduct("MON-1", "Monitor", 0, true)
+        ]);
+
+        var result = await service.ConfirmAsync(proposal.Token, CancellationToken.None);
+
+        Assert.Equal(3, inventory.Created.Count);
+        Assert.Equal(["CAB-1", "TEC-1", "MON-1"], inventory.Created.Select(p => p.Code));
+        Assert.Equal(3, result.Number);
+        Assert.False(result.Closed);
+    }
+
+    /// <summary>
+    /// Código repetido criaria o primeiro e falharia no segundo, deixando o lote
+    /// metade aplicado. Recusar antes de assinar é mais barato que reconciliar.
+    /// </summary>
+    [Fact]
+    public void Lote_com_codigo_repetido_e_recusado_antes_de_assinar()
+    {
+        var (service, inventory) = Build();
+
+        Assert.Throws<DomainValidationException>(() => service.ProposeProducts([
+            new ProposedProduct("CAB-1", "Cabo", 5, true),
+            new ProposedProduct("cab-1", "Cabo de novo", 2, true)
+        ]));
+
+        Assert.Empty(inventory.Created);
+    }
+
+    [Fact]
+    public void Lote_vazio_ou_grande_demais_e_recusado()
+    {
+        var (service, _) = Build();
+
+        Assert.Throws<DomainValidationException>(() => service.ProposeProducts([]));
+        Assert.Throws<DomainValidationException>(() => service.ProposeProducts(
+            Enumerable.Range(1, 21).Select(i => new ProposedProduct($"P-{i}", $"Produto {i}", 0, true)).ToList()));
     }
 
     /// <summary>

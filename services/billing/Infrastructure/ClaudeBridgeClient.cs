@@ -92,23 +92,49 @@ public sealed class ClaudeBridgeClient(
         {"acao":"propor_nota","texto":"o que você vai criar, em uma linha",
          "itens":[{"productId":"","quantidade":1}],"naoResolvidos":[],"avisos":[]}
 
-        Para propor o cadastro de um produto novo:
+        Para propor o cadastro de um ou vários produtos novos:
         {"acao":"propor_produto","texto":"o que você vai cadastrar, em uma linha",
-         "produto":{"codigo":"","descricao":"","saldo":0,"controlaEstoque":true}}
+         "produtos":[{"codigo":"","descricao":"","saldo":0,"controlaEstoque":true}]}
 
         Como escolher:
         - Pergunta sobre estoque, notas, movimentações ou sobre o próprio sistema
           -> consulte a ferramenta adequada e responda com "resposta".
         - Pedido para montar ou criar uma nota -> "propor_nota". A pessoa ainda
           precisa confirmar num botão; diga isso no texto.
-        - Pedido para cadastrar um produto que não existe no catálogo ->
-          "propor_produto". Confira antes com search_products que ele realmente
-          não existe. Código até 64 caracteres, descrição até 200, saldo inteiro
-          não negativo. Se a pessoa não disse o saldo, use 0 e avise no texto.
-        - Não sabe ou não tem ferramenta para aquilo -> "resposta" explicando o
-          que você consegue fazer. Nunca invente dado.
-        - Use o histórico da conversa para entender referências como "esse produto"
-          ou "o segundo item".
+        - Pedido para cadastrar produto que não existe -> "propor_produto", com
+          TODOS os produtos pedidos na mesma lista. Confira antes com
+          search_products quais já existem, e não reproponha esses. Código até 64
+          caracteres, descrição até 200, saldo inteiro não negativo; sem saldo
+          informado, use 0 e diga isso no texto.
+        - Use o histórico para entender referências como "esse produto", "o
+          segundo item" ou "a nota que você citou".
+
+        VOCÊ É CONSULTIVO. Isto é uma conversa, não um formulário:
+
+        - Se VOCÊ ofereceu algo no turno anterior e a pessoa aceitou — "eu quero",
+          "sim", "pode", "manda", "isso", "vamos" — FAÇA o que você ofereceu, sem
+          perguntar de novo. Reler a sua última fala é obrigatório antes de dizer
+          que não entendeu.
+        - Termine oferecendo o próximo passo útil quando houver um, e só quando
+          houver. Ofereceu, cumpra se aceitarem.
+        - Pedido amplo sobre algo que você SABE consultar: consulte primeiro e
+          responda com o que achou, em vez de pedir esclarecimento. "Relatório
+          geral", "como estamos", "resumo" -> junte estoque, notas e
+          movimentações e resuma.
+        - Só peça esclarecimento quando a resposta mudaria de verdade conforme a
+          escolha, e a escolha for grande. Se as opções cabem numa resposta
+          — poucas notas, poucos produtos —, RESPONDA TODAS em vez de perguntar
+          qual. Perguntar "qual das duas?" quando dava para mostrar as duas
+          gasta um turno da pessoa à toa.
+        - Ofereça no plural quando puder cumprir no plural: se você disse
+          "posso detalhar alguma delas" e existem duas, detalhe as duas quando
+          aceitarem.
+
+        QUANDO NÃO CONSEGUIR, seja útil em vez de só recusar. Diga, nesta ordem:
+        o que impediu, o que você CONSEGUE fazer perto disso, e o que a pessoa
+        pode fazer por conta própria. Você não fecha nota, não altera saldo e não
+        apaga nem edita registro — nesses casos aponte a tela onde ela mesma faz.
+        Nunca responda apenas "não entendi" ou "não posso".
         """;
 
     // ---------------------------------------------------------------- rascunho
@@ -179,7 +205,7 @@ public sealed class ClaudeBridgeClient(
         return new AssistantClientReply(
             resultado.Texto,
             resultado.PropoeNota,
-            resultado.Produto,
+            resultado.Produtos,
             resultado.Itens,
             resultado.NaoResolvidos,
             resultado.Avisos,
@@ -194,7 +220,7 @@ public sealed class ClaudeBridgeClient(
     private sealed record Execucao(
         string Texto,
         bool PropoeNota,
-        ProposedProduct? Produto,
+        IReadOnlyList<ProposedProduct>? Produtos,
         IReadOnlyList<AiDraftModelItem> Itens,
         IReadOnlyList<UnresolvedDraftItem> NaoResolvidos,
         IReadOnlyList<string> Avisos,
@@ -321,24 +347,35 @@ public sealed class ClaudeBridgeClient(
                 if (!aceitaResposta)
                     throw new InvalidOperationException("The bridge proposed a product outside the assistant flow.");
 
-                var produto = decisao["produto"] as JsonObject
-                    ?? throw new InvalidOperationException("The bridge proposed a product without data.");
+                // Aceita a lista e o objeto solto: modelo varia, e recusar por
+                // forma quando a intenção está clara só gera retentativa.
+                var lista = decisao["produtos"] as JsonArray;
+                if (lista is null && decisao["produto"] is JsonObject unico)
+                    lista = new JsonArray(unico.DeepClone());
+                if (lista is null)
+                    throw new InvalidOperationException("The bridge proposed a product without data.");
 
-                // Formato só; o ProposedActionService valida de novo antes de assinar,
-                // e o Inventory valida uma terceira vez ao criar de fato.
-                var proposto = new ProposedProduct(
-                    produto["codigo"]?.GetValue<string>()?.Trim() ?? string.Empty,
-                    produto["descricao"]?.GetValue<string>()?.Trim() ?? string.Empty,
-                    produto["saldo"]?.GetValue<int>() ?? 0,
-                    produto["controlaEstoque"]?.GetValue<bool>() ?? true);
+                // Formato só; o ProposedActionService valida de novo antes de
+                // assinar, e o Inventory valida uma terceira vez ao criar.
+                var propostos = lista
+                    .OfType<JsonObject>()
+                    .Select(produto => new ProposedProduct(
+                        produto["codigo"]?.GetValue<string>()?.Trim() ?? string.Empty,
+                        produto["descricao"]?.GetValue<string>()?.Trim() ?? string.Empty,
+                        produto["saldo"]?.GetValue<int>() ?? 0,
+                        produto["controlaEstoque"]?.GetValue<bool>() ?? true))
+                    .ToList();
+
+                if (propostos.Count == 0)
+                    throw new InvalidOperationException("The bridge proposed an empty product list.");
 
                 var textoProduto = decisao["texto"]?.GetValue<string>()?.Trim();
                 return new Execucao(
                     string.IsNullOrWhiteSpace(textoProduto)
-                        ? $"Posso cadastrar o produto {proposto.Code}."
+                        ? $"Posso cadastrar {propostos.Count} produto(s)."
                         : textoProduto,
                     false,
-                    proposto,
+                    propostos,
                     [],
                     [],
                     [],
