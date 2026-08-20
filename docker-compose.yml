@@ -62,6 +62,12 @@ services:
       InternalAuth__Token: ${INTERNAL_SERVICE_TOKEN:?Run scripts/setup.ps1 to generate the internal token}
       OpenAI__ApiKey: ${OPENAI_API_KEY:-}
       OpenAI__Model: ${OPENAI_MODEL:-gpt-5.6-luna}
+      # Copiloto local. Vazio mantem AI_DISABLED; "claude-bridge" fala com a
+      # ponte rodando na maquina (deploy/agent/bridge/server.js).
+      AI__Provider: ${AI_PROVIDER:-}
+      ClaudeBridge__BaseUrl: ${CLAUDE_BRIDGE_URL:-http://host.docker.internal:5099/}
+      ClaudeBridge__Secret: ${CLAUDE_BRIDGE_SECRET:-}
+      ClaudeBridge__Model: ${CLAUDE_BRIDGE_MODEL:-haiku}
       Cors__Origins__0: http://localhost:4200
     depends_on:
       billing-db:
@@ -75,6 +81,8 @@ services:
       interval: 10s
       timeout: 3s
       retries: 12
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks: [app, billing-data]
 
   frontend:

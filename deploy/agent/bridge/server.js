@@ -19,6 +19,7 @@
 const http = require('node:http');
 const { execFile } = require('node:child_process');
 const { timingSafeEqual } = require('node:crypto');
+const path = require('node:path');
 
 const PORTA = Number(process.env.BRIDGE_PORT || 5099);
 const HOST = process.env.BRIDGE_HOST || '127.0.0.1';
@@ -27,6 +28,10 @@ const CLAUDE = process.env.CLAUDE_BIN || '/var/lib/nfagent/.local/bin/claude';
 const MODELO = process.env.BRIDGE_MODEL || 'haiku';
 const TIMEOUT_MS = Number(process.env.BRIDGE_TIMEOUT_MS || 90_000);
 const MAX_PROMPT = 24_000;
+// O CLI carrega .claude/settings.json e CLAUDE.md do diretorio onde roda. A
+// ponte nao pode herdar configuracao de projeto nenhum: alem de imprevisivel,
+// um repo com settings proprios muda o comportamento do modelo sem aviso.
+const CWD = process.env.BRIDGE_CWD || __dirname;
 
 if (!SEGREDO) {
     console.error('BRIDGE_SECRET e obrigatorio.');
@@ -54,6 +59,13 @@ let ocupado = false;
 
 function executar(prompt) {
     return new Promise((resolve, reject) => {
+        // Windows: o npm instala `claude.cmd`, e execFile nao executa .cmd sem
+        // shell. Rodar com shell colocaria o prompt numa linha de comando, o que
+        // e porta aberta para injecao -- entao invocamos o wrapper .cjs com node.
+        const usaNode = /\.(c?js)$/i.test(CLAUDE);
+        const executavel = usaNode ? process.execPath : CLAUDE;
+        const prefixo = usaNode ? [CLAUDE] : [];
+
         const args = [
             '-p', prompt,
             '--output-format', 'json',
@@ -65,7 +77,8 @@ function executar(prompt) {
         // O CLI espera dados em stdin por 3s antes de prosseguir e imprime um
         // aviso em stderr. Sem fechar o stdin, cada chamada custa 3s a mais e o
         // aviso polui a saida.
-        const filho = execFile(CLAUDE, args, {
+        const filho = execFile(executavel, [...prefixo, ...args], {
+            cwd: CWD,
             timeout: TIMEOUT_MS,
             maxBuffer: 8 * 1024 * 1024,
             env: {
@@ -75,7 +88,14 @@ function executar(prompt) {
                 ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
             },
         }, (erro, stdout, stderr) => {
-            if (erro) return reject(new Error(erro.killed ? 'timeout' : (stderr || erro.message).slice(0, 400)));
+            if (erro) {
+                // NUNCA usar erro.message: o Node o monta com a linha de comando
+                // inteira, e o prompt vai junto (INV-22). Só as ultimas linhas do
+                // stderr, que carregam a mensagem do CLI, e o codigo de saida.
+                const cauda = String(stderr || '').trim().split(/[\r\n]+/).slice(-3).join(' ').trim().slice(0, 300);
+                return reject(new Error(
+                    erro.killed ? 'timeout' : (cauda || `o CLI saiu com codigo ${erro.code ?? 'desconhecido'}`)));
+            }
             resolve(stdout);
         });
         filho.stdin.end();

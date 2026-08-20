@@ -195,6 +195,12 @@ mat-icon svg {
   font-variant-numeric: tabular-nums;
 }
 
+.draft-done {
+  color: var(--st-done-fg);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
 .draft-actions {
   display: flex;
   padding: var(--sp-2) 9px;

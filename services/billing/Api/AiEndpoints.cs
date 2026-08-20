@@ -12,6 +12,18 @@ public static class AiEndpoints
     {
         MapDraftEndpoint(endpoints, "/api/invoices/ai-draft");
         MapDraftEndpoint(endpoints, "/api/ai-drafts");
+
+        // Assistente conversacional. O rascunho isolado acima continua para quem
+        // quer só o rascunho; aqui há histórico e a resposta pode trazer uma ação
+        // proposta, que ainda depende de confirmação humana (INV-24).
+        endpoints.MapPost("/api/assistant/messages", RespondAsync)
+            .Produces<AssistantMessageResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable)
+            .RequireRateLimiting(RateLimitPolicy)
+            .WithTags("AI drafts");
+
         return endpoints;
     }
 
@@ -27,6 +39,12 @@ public static class AiEndpoints
             .RequireRateLimiting(RateLimitPolicy)
             .WithTags("AI drafts");
     }
+
+    private static async Task<IResult> RespondAsync(
+        AssistantMessageRequest request,
+        AssistantService service,
+        CancellationToken cancellationToken) =>
+        Results.Ok(await service.RespondAsync(request, cancellationToken));
 
     private static async Task<IResult> CreateDraftAsync(
         HttpRequest request,

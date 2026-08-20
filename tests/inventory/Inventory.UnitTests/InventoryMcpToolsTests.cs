@@ -19,8 +19,10 @@ public sealed class InventoryMcpToolsTests
             .Cast<McpServerToolAttribute>()
             .ToDictionary(attribute => attribute.Name!, StringComparer.Ordinal);
 
+        // Lista fechada de proposito: uma tool nova so entra aqui depois de
+        // alguem conferir que ela e mesmo somente leitura (INV-27).
         Assert.Equal(
-            ["check_availability", "get_product", "search_products"],
+            ["check_availability", "get_product", "list_movements", "list_products", "search_products"],
             tools.Keys.Order(StringComparer.Ordinal));
         Assert.All(tools.Values, attribute =>
         {
@@ -52,6 +54,46 @@ public sealed class InventoryMcpToolsTests
             .ToArray();
 
         Assert.Empty(offenders);
+    }
+
+    [Fact]
+    public async Task ListProductsRejectsOversizedPageWithoutTouchingCatalog()
+    {
+        var catalog = new FakeProductCatalog();
+
+        var result = await InventoryMcpTools.ListProducts(catalog, 1, 500);
+
+        Assert.Equal("VALIDATION_ERROR", result.ErrorCode);
+        Assert.Empty(result.Products);
+        Assert.Equal(0, catalog.SearchCalls);
+    }
+
+    /// <summary>
+    /// A listagem existe para responder "o que tenho no estoque", que a busca
+    /// nao respondia: ela exige termo de 1 a 100 caracteres. Aqui a consulta vai
+    /// nula de proposito, e o catalogo pagina.
+    /// </summary>
+    [Fact]
+    public async Task ListProductsSearchesWithoutQuery()
+    {
+        var catalog = new FakeProductCatalog();
+
+        var result = await InventoryMcpTools.ListProducts(catalog, 1, 20);
+
+        Assert.Null(result.ErrorCode);
+        Assert.Equal(1, catalog.SearchCalls);
+    }
+
+    [Fact]
+    public async Task ListMovementsRejectsInvalidProductId()
+    {
+        var reader = new FakeStockMovementReader();
+
+        var result = await InventoryMcpTools.ListMovements(reader, "nao-e-uuid");
+
+        Assert.Equal("VALIDATION_ERROR", result.ErrorCode);
+        Assert.Empty(result.Movements);
+        Assert.Equal(0, reader.Calls);
     }
 
     [Fact]
@@ -114,6 +156,21 @@ public sealed class InventoryMcpToolsTests
 
     // Implementa so a leitura: nao existe mais CreateAsync para o fake precisar
     // stubar, o que e a prova pratica de que a tool nao alcanca a escrita.
+    private sealed class FakeStockMovementReader : IStockMovementReader
+    {
+        public int Calls { get; private set; }
+
+        public Task<StockMovementPageResponse> SearchAsync(
+            Guid? productId,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(new StockMovementPageResponse([], page, pageSize, 0));
+        }
+    }
+
     private sealed class FakeProductCatalog : IReadOnlyProductCatalog
     {
         public int SearchCalls { get; private set; }

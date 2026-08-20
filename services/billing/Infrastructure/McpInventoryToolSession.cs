@@ -26,11 +26,17 @@ public sealed class McpInventoryToolSessionFactory(
     IHttpContextAccessor httpContextAccessor,
     ILoggerFactory loggerFactory) : IInventoryToolSessionFactory
 {
+    // Allowlist do cliente MCP. Todas somente leitura (INV-27): o servidor
+    // declara ReadOnly/OpenWorld e a checagem abaixo recusa a sessao se alguma
+    // deixar de ser. Criar ou fechar nota nunca entra aqui -- e dominio do
+    // proprio Billing, que e o cliente, nao o servidor MCP.
     private static readonly HashSet<string> AllowedTools =
     [
         "search_products",
         "get_product",
-        "check_availability"
+        "check_availability",
+        "list_products",
+        "list_movements"
     ];
 
     public async Task<IInventoryToolSession> OpenAsync(CancellationToken cancellationToken)

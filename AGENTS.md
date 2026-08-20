@@ -36,7 +36,15 @@ Regras numeradas e testáveis. Use o número no nome do teste e na mensagem de c
 | **INV-20** | Toda operação registra quem confirmou | `Invoice.CreatedBy` / `ClosedBy` |
 | **INV-21** | Erro externo vira `ProblemDetails` sanitizado com `traceId` | `ExceptionHandlingMiddleware` |
 | **INV-22** | Nunca registrar chave, token, imagem, prompt integral ou raciocínio do modelo | — |
-| **INV-23** | O fluxo manual funciona sem OpenAI | `AiDraftService` → `AI_DISABLED` |
+| **INV-23** | O fluxo manual funciona sem provedor de IA configurado | `AiDraftService` e `AssistantService` → `AI_DISABLED` |
+
+## Provedores de IA
+
+`AI:Provider` escolhe quem responde. Vazio ou `openai` usa o `OpenAiResponsesClient` e exige `OPENAI_API_KEY`; `claude-bridge` usa o Claude Code que roda na VPS, atrás de uma ponte HTTP local (`deploy/agent/bridge/`).
+
+**A ponte não fala MCP.** Ela recebe um prompt e devolve texto; a sessão MCP, a contagem de chamadas e a validação de proveniência ficam no Billing. Três consequências que valem registro: a ponte nunca recebe o `INTERNAL_SERVICE_TOKEN`, então não herda o poder de debitar estoque; `DiscoveredProductIds` nasce de resultado MCP real, e não da palavra de quem implementou o provedor; e o teto de chamadas vale para qualquer provedor.
+
+O provedor de ponte não aceita imagem: o atalho "Ler de uma foto" responde `AI_IMAGE_UNSUPPORTED` em vez de falhar em silêncio. Detalhes de operação em `deploy/README.md`.
 
 ## IA — o que mudou e por quê
 
@@ -49,7 +57,9 @@ O que **não** mudou, e é o que sustenta a segurança:
 - **INV-24 — A IA nunca executa sozinha.** Ela devolve uma **ação proposta** tipada; a interface mostra exatamente o que será feito; e só após confirmação humana o backend executa.
 - **INV-25 — A confirmação é controle de servidor.** A ação carrega assinatura HMAC e prazo de validade (`ProposedActionService`). Confirmação apenas na interface seria contornável por prompt injection chamando o endpoint direto.
 - **INV-26 — A execução revalida tudo.** A proposta é sugestão, não autorização: existência de produto e saldo são checados de novo no momento de confirmar.
-- **INV-27 — As tools MCP continuam somente leitura.** `search_products`, `get_product` e `check_availability`. Criar ou fechar nota **não** virou tool: o servidor MCP é do Inventory e nota é domínio do Billing, que é o cliente MCP — uma tool assim faria o Billing chamar a si mesmo pelo protocolo. As tools recebem `IReadOnlyProductCatalog`, que não tem método de escrita: a anotação `ReadOnly` declara a intenção, o tipo é o que a torna inalcançável.
+- **INV-27 — As tools continuam somente leitura.** No MCP do Inventory: `search_products`, `get_product`, `check_availability`, `list_products` e `list_movements`. No Billing, fora do MCP: `list_invoices` e `get_invoice`. Criar ou fechar nota **não** virou tool. Nota é domínio do Billing, que é o cliente MCP — uma tool assim no servidor do Inventory faria o Billing chamar a si mesmo pelo protocolo; por isso as consultas de nota são locais. As tools de catálogo recebem `IReadOnlyProductCatalog`, que não tem método de escrita: a anotação `ReadOnly` declara a intenção, o tipo é o que a torna inalcançável.
+
+- **INV-28 — O assistente escreve só por ação proposta, e nunca fecha.** Ele pode propor criar nota (`CreateInvoice`) e cadastrar produto (`CreateProduct`); ambas exigem confirmação humana e assinatura válida. `CreateAndCloseInvoice` é inalcançável a partir dele: a nota nasce **aberta** e fechar continua sendo ato da pessoa, coberto por `Nota_proposta_nasce_aberta_e_o_assistente_nao_fecha`. Produto é criado pela API do Inventory, nunca por escrita no banco do outro serviço (INV-02, INV-05).
 
 O que se perdeu: antes a IA não podia causar dano porque não tinha ferramenta de escrita. Agora o argumento é "confiamos na confirmação assinada e na revalidação". É mais fraco, e por isso os controles acima são obrigatórios e testados em `ProposedActionServiceTests`.
 

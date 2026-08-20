@@ -57,10 +57,44 @@ public sealed class ProposedActionService(
         var payload = new ProposedActionPayload(
             kind,
             items,
+            null,
             clock.GetUtcNow().Add(Validity));
 
         var encoded = Encode(payload);
-        return new ProposedActionResponse(kind.ToString(), items, payload.ExpiresAt, encoded);
+        return new ProposedActionResponse(kind.ToString(), items, null, payload.ExpiresAt, encoded);
+    }
+
+    /// <summary>
+    /// Propõe cadastrar um produto novo. Não há proveniência MCP a checar — o
+    /// produto ainda não existe — então a validação aqui é de formato, espelhando
+    /// os limites de <c>CreateProductRequest</c> no Inventory, e a garantia real
+    /// continua sendo a confirmação humana (INV-24).
+    /// </summary>
+    public ProposedActionResponse ProposeProduct(ProposedProduct product)
+    {
+        var code = product.Code?.Trim() ?? string.Empty;
+        var description = product.Description?.Trim() ?? string.Empty;
+
+        if (code.Length is < 1 or > 64)
+            throw new DomainValidationException("O código do produto deve ter entre 1 e 64 caracteres.");
+        if (description.Length is < 1 or > 200)
+            throw new DomainValidationException("A descrição do produto deve ter entre 1 e 200 caracteres.");
+        if (product.Balance is < 0 or > 1_000_000)
+            throw new DomainValidationException("Saldo inicial inválido para o produto.");
+
+        var saneado = new ProposedProduct(code, description, product.Balance, product.TracksStock);
+        var payload = new ProposedActionPayload(
+            ProposedActionKind.CreateProduct,
+            [],
+            saneado,
+            clock.GetUtcNow().Add(Validity));
+
+        return new ProposedActionResponse(
+            ProposedActionKind.CreateProduct.ToString(),
+            [],
+            saneado,
+            payload.ExpiresAt,
+            Encode(payload));
     }
 
     /// <summary>Executa a ação apenas se a assinatura e o prazo conferirem.</summary>
@@ -73,6 +107,28 @@ public sealed class ProposedActionService(
         if (clock.GetUtcNow() > payload.ExpiresAt)
         {
             throw new DomainValidationException("A ação proposta expirou. Peça um novo rascunho ao assistente.");
+        }
+
+        if (payload.Kind == ProposedActionKind.CreateProduct)
+        {
+            var proposto = payload.Product
+                ?? throw new DomainValidationException("A ação proposta não descreve um produto.");
+
+            // Produto é domínio do Inventory (INV-02): criamos pela API dele, nunca
+            // escrevendo no banco do outro serviço (INV-05).
+            var criado = await inventory.CreateProductAsync(
+                proposto.Code,
+                proposto.Description,
+                proposto.Balance,
+                proposto.TracksStock,
+                cancellationToken);
+
+            return new ProposedActionResultResponse(
+                criado.Id,
+                0,
+                "ProductCreated",
+                false,
+                httpContext.ActingUserName());
         }
 
         // Revalida tudo do zero: a proposta é uma sugestão, não uma autorização
@@ -176,5 +232,6 @@ public sealed class ProposedActionService(
     private sealed record ProposedActionPayload(
         ProposedActionKind Kind,
         IReadOnlyList<ProposedItem> Items,
+        ProposedProduct? Product,
         DateTimeOffset ExpiresAt);
 }

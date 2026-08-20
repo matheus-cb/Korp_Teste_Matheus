@@ -9,6 +9,12 @@ public interface IInventoryClient
 {
     Task<InventoryProduct?> GetProductAsync(Guid id, CancellationToken cancellationToken);
     Task<InventoryProduct?> FindByCodeAsync(string code, CancellationToken cancellationToken);
+    Task<InventoryProduct> CreateProductAsync(
+        string code,
+        string description,
+        int balance,
+        bool tracksStock,
+        CancellationToken cancellationToken);
     Task<StockDebitOutcome> DebitAsync(Guid attemptId, Guid invoiceId, IReadOnlyList<StockDebitItem> items, CancellationToken cancellationToken);
     Task<StockDebitOutcome> GetDebitAsync(Guid attemptId, CancellationToken cancellationToken);
 }
@@ -67,6 +73,34 @@ public sealed class InventoryClient(HttpClient httpClient, ILogger<InventoryClie
         var page = await response.Content.ReadFromJsonAsync<ProductPageWireResponse>(JsonOptions, cancellationToken);
         return page?.Items?.FirstOrDefault(product =>
             string.Equals(product.Code, code.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Cadastra um produto pela API do Inventory. O Billing não escreve no banco
+    /// do outro serviço (INV-05); a porta é esta, e a dona do saldo continua sendo
+    /// o Inventory (INV-02).
+    /// </summary>
+    public async Task<InventoryProduct> CreateProductAsync(
+        string code,
+        string description,
+        int balance,
+        bool tracksStock,
+        CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(() => httpClient.PostAsJsonAsync(
+            "/api/products",
+            new { code, description, balance, tracksStock },
+            JsonOptions,
+            cancellationToken));
+
+        if (response.StatusCode == HttpStatusCode.Conflict)
+            throw new ConflictException("PRODUCT_CODE_TAKEN", $"Já existe um produto com o código {code}.");
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+            throw new DomainValidationException("O Inventory recusou os dados do produto.");
+        if (!response.IsSuccessStatusCode) throw Unavailable();
+
+        return await response.Content.ReadFromJsonAsync<InventoryProduct>(JsonOptions, cancellationToken)
+            ?? throw Unavailable();
     }
 
     public async Task<StockDebitOutcome> DebitAsync(

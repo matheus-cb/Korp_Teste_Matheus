@@ -105,13 +105,22 @@ public enum ProposedActionKind
 {
     CreateInvoice = 0,
     CreateAndCloseInvoice = 1,
+    CreateProduct = 2,
 }
 
 public sealed record ProposedItem(Guid ProductId, string Code, string Description, int Quantity);
 
+/// <summary>
+/// Produto que o assistente propõe cadastrar. Diferente de <see cref="ProposedItem"/>,
+/// aqui não há proveniência MCP a verificar — o produto ainda não existe. A defesa
+/// é outra: formato validado no servidor e confirmação humana antes de criar.
+/// </summary>
+public sealed record ProposedProduct(string Code, string Description, int Balance, bool TracksStock);
+
 public sealed record ProposedActionResponse(
     string Kind,
     IReadOnlyList<ProposedItem> Items,
+    ProposedProduct? Product,
     DateTimeOffset ExpiresAt,
     /// <summary>Assinado pelo servidor: sem ele a execução é recusada.</summary>
     string Token);

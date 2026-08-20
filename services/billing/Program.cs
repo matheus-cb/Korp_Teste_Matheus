@@ -52,13 +52,16 @@ builder.Services.AddHttpClient<IInventoryClient, InventoryClient>((sp, client) =
 // Em qualquer caso a sessao MCP e a validacao de proveniencia ficam no Billing.
 if (string.Equals(builder.Configuration["AI:Provider"], "claude-bridge", StringComparison.OrdinalIgnoreCase))
 {
-    builder.Services.AddHttpClient<IInvoiceDraftAiClient, ClaudeBridgeClient>((sp, client) =>
+    builder.Services.AddHttpClient<ClaudeBridgeClient>((sp, client) =>
     {
         var options = sp.GetRequiredService<IOptions<ClaudeBridgeOptions>>().Value;
         if (!string.IsNullOrWhiteSpace(options.BaseUrl))
             client.BaseAddress = new Uri(options.BaseUrl);
         client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
     });
+    // A mesma instancia atende os dois contratos.
+    builder.Services.AddScoped<IInvoiceDraftAiClient>(sp => sp.GetRequiredService<ClaudeBridgeClient>());
+    builder.Services.AddScoped<IAssistantClient>(sp => sp.GetRequiredService<ClaudeBridgeClient>());
 }
 else
 {
@@ -68,12 +71,17 @@ else
         client.BaseAddress = new Uri(options.BaseUrl);
         client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
     });
+    // O provedor OpenAI nao implementa a conversa; o assistente responde
+    // AI_DISABLED em vez de o endpoint deixar de existir (INV-23).
+    builder.Services.AddSingleton<IAssistantClient, UnavailableAssistantClient>();
 }
 
 builder.Services.AddSingleton<IInventoryToolSessionFactory, McpInventoryToolSessionFactory>();
 builder.Services.AddScoped<InvoiceService>();
 builder.Services.AddScoped<ClosureCoordinator>();
 builder.Services.AddScoped<AiDraftService>();
+builder.Services.AddScoped<AssistantService>();
+builder.Services.AddScoped<IAssistantLocalTools, AssistantLocalTools>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<InvoiceImportService>();
 builder.Services.AddScoped<ProposedActionService>();

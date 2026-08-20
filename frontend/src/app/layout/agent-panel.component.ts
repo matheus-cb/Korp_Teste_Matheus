@@ -9,15 +9,12 @@ import type { AiDraft, AiDraftItem } from '../core/models/ai-draft.model';
 import type { UiError } from '../core/models/api.models';
 import { AiDraftService } from '../core/services/ai-draft.service';
 import { ApiErrorService } from '../core/services/api-error.service';
+import type { AssistantTurn } from '../core/services/assistant-conversation.service';
+import { AssistantConversationService } from '../core/services/assistant-conversation.service';
+import { AssistantService } from '../core/services/assistant.service';
 import { DraftTransferService } from '../core/services/draft-transfer.service';
 import { NotificationService } from '../core/services/notification.service';
 import { InlineAlertComponent } from '../shared/inline-alert.component';
-
-interface Turn {
-  role: 'user' | 'assistant';
-  text: string;
-  draft?: AiDraft;
-}
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
@@ -45,24 +42,30 @@ const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
         <button type="button" (click)="useSuggestion('Duas unidades do cabo USB-C e um teclado sem fio')">
           Criar nota por texto
         </button>
-        <button type="button" (click)="pickImage()">
-          <mat-icon svgIcon="image" aria-hidden="true" />
-          Ler de uma foto
+        <button type="button" (click)="useSuggestion('O que tenho no estoque?')">
+          Ver o estoque
         </button>
-        <button type="button" (click)="useSuggestion('Confira a disponibilidade do monitor 24 polegadas')">
-          Conferir disponibilidade
+        <button type="button" (click)="useSuggestion('Quais são as minhas notas?')">
+          Minhas notas
         </button>
+        <button type="button" (click)="useSuggestion('Minhas últimas movimentações')">
+          Movimentações
+        </button>
+        @if (turns().length) {
+          <button type="button" (click)="clear()">Limpar conversa</button>
+        }
       </div>
 
       <div class="body">
-        @if (turns.length === 0) {
+        @if (turns().length === 0) {
           <p class="hint">
-            Descreva o pedido em texto ou envie uma foto. O assistente procura os
-            produtos no catálogo e monta um rascunho para você revisar.
+            Pergunte sobre o estoque, suas notas e movimentações, ou peça uma nota.
+            Ele consulta os dados reais e deixa a nota pronta para você conferir —
+            fechar continua sendo decisão sua.
           </p>
         }
 
-        @for (turn of turns; track $index) {
+        @for (turn of turns(); track $index) {
           @if (turn.role === 'user') {
             <div class="msg user">{{ turn.text }}</div>
           } @else {
@@ -87,10 +90,24 @@ const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
                     </div>
                   }
                   <div class="draft-actions">
-                    <button type="button" class="nf-btn" (click)="discard(turn)">Descartar</button>
-                    <button type="button" class="nf-btn nf-btn--primary" (click)="review(turn.draft)">
-                      Revisar e criar
-                    </button>
+                    @if (turn.done) {
+                      <span class="draft-done">Nota criada</span>
+                    } @else if (turn.action) {
+                      <button type="button" class="nf-btn" (click)="discard(turn)">Descartar</button>
+                      <button
+                        type="button"
+                        class="nf-btn nf-btn--primary"
+                        [disabled]="confirming"
+                        (click)="createInvoice(turn)"
+                      >
+                        {{ confirming ? 'Criando…' : 'Criar nota' }}
+                      </button>
+                    } @else {
+                      <button type="button" class="nf-btn" (click)="discard(turn)">Descartar</button>
+                      <button type="button" class="nf-btn nf-btn--primary" (click)="review(turn.draft)">
+                        Revisar e criar
+                      </button>
+                    }
                   </div>
                 </div>
               }
@@ -126,7 +143,8 @@ const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
       </div>
 
       <p class="guard">
-        O assistente só consulta o catálogo. Não cria nota, não fecha nota e não altera saldo.
+        O assistente consulta os dados e prepara a nota. Criar depende do seu clique;
+        fechar a nota e alterar saldo continuam fora do alcance dele.
       </p>
 
       <form class="composer" (ngSubmit)="send()">
@@ -142,7 +160,7 @@ const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
         <textarea
           rows="2"
           maxlength="1000"
-          placeholder="Descreva o pedido ou anexe uma foto…"
+          placeholder="Pergunte algo ou descreva um pedido…"
           aria-label="Mensagem para o assistente"
           [(ngModel)]="prompt"
           [ngModelOptions]="{ standalone: true }"
@@ -181,16 +199,21 @@ export class AgentPanelComponent {
   readonly closed = output<void>();
 
   private readonly aiDraft = inject(AiDraftService);
+  private readonly assistant = inject(AssistantService);
+  private readonly conversation = inject(AssistantConversationService);
   private readonly apiError = inject(ApiErrorService);
   private readonly transfer = inject(DraftTransferService);
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
-  turns: Turn[] = [];
+  /** O histórico vive no serviço: o painel é destruído ao fechar, ele não. */
+  readonly turns = this.conversation.turns;
+
   prompt = '';
   image: File | null = null;
   loading = false;
+  confirming = false;
   error: UiError | null = null;
 
   availabilityLabel(item: AiDraftItem): string {
@@ -240,13 +263,51 @@ export class AgentPanelComponent {
     const text = this.prompt.trim();
     if ((!text && !this.image) || this.loading) return;
 
-    this.turns = [...this.turns, { role: 'user', text: text || 'Imagem enviada' }];
+    // O histórico precisa sair antes de o turno novo entrar, senão a própria
+    // pergunta apareceria duplicada no contexto enviado ao modelo.
+    const history = this.conversation.history();
+    this.conversation.append({ role: 'user', text: text || 'Imagem enviada' });
     this.loading = true;
     this.error = null;
     const image = this.image ?? undefined;
     this.prompt = '';
     this.image = null;
 
+    // Imagem continua pelo fluxo de rascunho: o provedor de conversa é texto.
+    if (image) {
+      this.sendImage(text, image);
+      return;
+    }
+
+    this.assistant
+      .send(text, history)
+      .pipe(
+        finalize(() => (this.loading = false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (message) => {
+          const draft: AiDraft | undefined = message.items.length
+            ? {
+                runId: message.runId,
+                items: message.items,
+                unresolvedItems: message.unresolvedItems,
+                warnings: message.warnings,
+                steps: message.steps,
+              }
+            : undefined;
+          this.conversation.append({
+            role: 'assistant',
+            text: message.text,
+            draft,
+            action: message.action ?? undefined,
+          });
+        },
+        error: (error: unknown) => (this.error = this.apiError.from(error)),
+      });
+  }
+
+  private sendImage(text: string, image: File): void {
     this.aiDraft
       .create(text, image)
       .pipe(
@@ -256,17 +317,57 @@ export class AgentPanelComponent {
       .subscribe({
         next: (draft) => {
           const resolved = draft.items.length;
-          const summary = resolved
-            ? `Encontrei ${resolved} ${resolved === 1 ? 'produto' : 'produtos'} no catálogo.`
-            : 'Não consegui identificar produtos do catálogo nesse pedido.';
-          this.turns = [...this.turns, { role: 'assistant', text: summary, draft }];
+          this.conversation.append({
+            role: 'assistant',
+            text: resolved
+              ? `Encontrei ${resolved} ${resolved === 1 ? 'produto' : 'produtos'} no catálogo.`
+              : 'Não consegui identificar produtos do catálogo nessa imagem.',
+            draft,
+          });
         },
         error: (error: unknown) => (this.error = this.apiError.from(error)),
       });
   }
 
-  discard(turn: Turn): void {
-    this.turns = this.turns.filter((candidate) => candidate !== turn);
+  /**
+   * Executa a ação assinada. O clique é o consentimento exigido pelo INV-24; o
+   * servidor ainda revalida produto e saldo antes de escrever (INV-26).
+   */
+  createInvoice(turn: AssistantTurn): void {
+    const token = turn.action?.token;
+    if (!token || this.confirming) return;
+
+    this.confirming = true;
+    this.error = null;
+    this.assistant
+      .confirm(token)
+      .pipe(
+        finalize(() => (this.confirming = false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (result) => {
+          this.conversation.replace(turn, {
+            ...turn,
+            text: `Nota ${result.number} criada e aberta. Confira e feche quando quiser.`,
+            action: undefined,
+            done: true,
+          });
+          this.notification.success('Nota criada', `A nota ${result.number} está aberta.`);
+          this.closed.emit();
+          void this.router.navigate(['/notas', result.invoiceId]);
+        },
+        error: (error: unknown) => (this.error = this.apiError.from(error)),
+      });
+  }
+
+  discard(turn: AssistantTurn): void {
+    this.conversation.remove(turn);
+  }
+
+  clear(): void {
+    this.conversation.clear();
+    this.error = null;
   }
 
   /** O rascunho vai para o formulário de emissão; quem cria a nota é a pessoa. */

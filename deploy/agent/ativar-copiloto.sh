@@ -96,9 +96,15 @@ RESPOSTA=$(curl -s --max-time 120 -H 'Content-Type: application/json' \
     -d "{\"segredo\":\"$SEGREDO\",\"prompt\":\"Responda apenas com este JSON, nada mais: {\\\"acao\\\":\\\"teste\\\",\\\"ok\\\":true}\"}" \
     "http://$HOST:5099/draft")
 unset SEGREDO
+# O que este passo prova e que a cadeia inteira funciona: ponte, credencial e
+# modelo. NAO se exige formato aqui -- pedir JSON solto, sem o contexto do
+# Copiloto, e um pedido estranho que o modelo legitimamente recusa. O contrato
+# de JSON e exercido pelo prompt real, com validacao no Billing.
 case "$RESPOSTA" in
-    *'"ok"'*|*'ok'*true*) echo "[+] o modelo respondeu" ;;
-    *) echo "[!] a ponte respondeu, mas o modelo nao: ${RESPOSTA:0:200}"; exit 1 ;;
+    *'"erro"'*) echo "[!] a ponte falhou: ${RESPOSTA:0:220}"; exit 1 ;;
+    *'"texto":""'*) echo "[!] o modelo respondeu vazio"; exit 1 ;;
+    *'"texto"'*) echo "[+] a cadeia responde (ponte + credencial + modelo)" ;;
+    *) echo "[!] resposta inesperada: ${RESPOSTA:0:220}"; exit 1 ;;
 esac
 
 echo "[*] ligando o provedor no Billing..."

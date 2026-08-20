@@ -32,6 +32,22 @@ internal sealed class FakeInventoryClient : IInventoryClient
         Task.FromResult(Products.Values.FirstOrDefault(product =>
             string.Equals(product.Code, code, StringComparison.OrdinalIgnoreCase)));
 
+    /// <summary>Produtos criados pelo fluxo de ação proposta, para inspeção nos testes.</summary>
+    public List<InventoryProduct> Created { get; } = [];
+
+    public Task<InventoryProduct> CreateProductAsync(
+        string code,
+        string description,
+        int balance,
+        bool tracksStock,
+        CancellationToken cancellationToken)
+    {
+        var product = new InventoryProduct(Guid.NewGuid(), code, description, balance, tracksStock);
+        Products[product.Id] = product;
+        Created.Add(product);
+        return Task.FromResult(product);
+    }
+
     public Task<StockDebitOutcome> DebitAsync(Guid attemptId, Guid invoiceId, IReadOnlyList<StockDebitItem> items, CancellationToken cancellationToken)
     {
         DebitCalls++;

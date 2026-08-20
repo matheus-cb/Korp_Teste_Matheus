@@ -15,6 +15,7 @@ public sealed class RateLimitMetadataTests
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddScoped<AiDraftService>(_ => null!);
+        builder.Services.AddScoped<AssistantService>(_ => null!);
         builder.Services.AddScoped<InvoiceService>(_ => null!);
         builder.Services.AddScoped<ClosureCoordinator>(_ => null!);
         builder.Services.AddScoped<BillingDbContext>(_ => null!);
@@ -31,6 +32,10 @@ public sealed class RateLimitMetadataTests
             endpoint.RoutePattern.RawText == "/api/invoices/ai-draft");
         var compatibilityAiRoute = endpoints.Single(endpoint =>
             endpoint.RoutePattern.RawText == "/api/ai-drafts");
+        // O assistente conversacional chama o modelo como o rascunho: sem teto,
+        // uma aba aberta consegue enfileirar execuções sem limite.
+        var assistantRoute = endpoints.Single(endpoint =>
+            endpoint.RoutePattern.RawText == "/api/assistant/messages");
         var closeRoute = endpoints.Single(endpoint =>
             endpoint.RoutePattern.RawText == "/api/invoices/{id:guid}/close");
 
@@ -40,6 +45,9 @@ public sealed class RateLimitMetadataTests
         Assert.Equal(
             AiEndpoints.RateLimitPolicy,
             compatibilityAiRoute.Metadata.GetMetadata<EnableRateLimitingAttribute>()!.PolicyName);
+        Assert.Equal(
+            AiEndpoints.RateLimitPolicy,
+            assistantRoute.Metadata.GetMetadata<EnableRateLimitingAttribute>()!.PolicyName);
         Assert.Null(closeRoute.Metadata.GetMetadata<EnableRateLimitingAttribute>());
     }
 }

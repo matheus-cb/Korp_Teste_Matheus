@@ -31,6 +31,7 @@ builder.Services.AddScoped<IProductCatalog, ProductCatalog>();
 // Mesma instancia do escopo, exposta pelo contrato sem escrita. As tools MCP
 // resolvem por aqui e nao alcancam CreateAsync nem por engano.
 builder.Services.AddScoped<IReadOnlyProductCatalog>(sp => sp.GetRequiredService<IProductCatalog>());
+builder.Services.AddScoped<IStockMovementReader, StockMovementReader>();
 builder.Services.AddScoped<IStockReconciliation, StockReconciliation>();
 builder.Services.AddScoped<IStockDebitService, StockDebitService>();
 builder.Services.AddSingleton(TimeProvider.System);

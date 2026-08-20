@@ -130,6 +130,88 @@ public sealed class InventoryMcpTools
             null);
     }
 
+    [McpServerTool(
+        Name = "list_products",
+        Title = "List products",
+        ReadOnly = true,
+        OpenWorld = false,
+        Destructive = false,
+        Idempotent = true,
+        UseStructuredContent = true)]
+    [Description("List the internal product catalog page by page, without a search term. Use it to answer what exists in stock. Never changes inventory.")]
+    public static async Task<ListProductsToolResult> ListProducts(
+        IReadOnlyProductCatalog catalog,
+        [Description("Page number, starting at 1.")] int page = 1,
+        [Description("Items per page; from 1 to 50.")] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1)
+        {
+            return new ListProductsToolResult([], 1, 0, 0, "VALIDATION_ERROR", "page must be 1 or greater.");
+        }
+
+        if (pageSize is < 1 or > 50)
+        {
+            return new ListProductsToolResult([], page, 0, 0, "VALIDATION_ERROR", "pageSize must be between 1 and 50.");
+        }
+
+        // Consulta nula lista tudo: o catalogo ja trata isso e pagina.
+        var result = await catalog.SearchAsync(null, page, pageSize, cancellationToken);
+        return new ListProductsToolResult(
+            result.Items.Select(ToToolProduct).ToArray(),
+            result.Page,
+            result.PageSize,
+            result.TotalCount,
+            null,
+            null);
+    }
+
+    [McpServerTool(
+        Name = "list_movements",
+        Title = "List stock movements",
+        ReadOnly = true,
+        OpenWorld = false,
+        Destructive = false,
+        Idempotent = true,
+        UseStructuredContent = true)]
+    [Description("List completed stock movements, newest first, optionally for one product. Read-only history; never changes inventory.")]
+    public static async Task<ListMovementsToolResult> ListMovements(
+        IStockMovementReader reader,
+        [Description("Optional product UUID to filter by.")] string? productId = null,
+        [Description("Page number, starting at 1.")] int page = 1,
+        [Description("Items per page; from 1 to 50.")] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        Guid? filtro = null;
+        if (!string.IsNullOrWhiteSpace(productId))
+        {
+            if (!Guid.TryParse(productId, out var id) || id == Guid.Empty)
+            {
+                return new ListMovementsToolResult([], page, 0, 0, "VALIDATION_ERROR", "productId must be a non-empty UUID.");
+            }
+
+            filtro = id;
+        }
+
+        if (page < 1 || pageSize is < 1 or > 50)
+        {
+            return new ListMovementsToolResult([], page, 0, 0, "VALIDATION_ERROR", "page must be 1 or greater and pageSize between 1 and 50.");
+        }
+
+        var result = await reader.SearchAsync(filtro, page, pageSize, cancellationToken);
+        var items = result.Items.Select(movement => new MovementToolItem(
+            movement.ProductId.ToString(),
+            movement.Code,
+            movement.Description,
+            movement.Quantity,
+            movement.BalanceBefore,
+            movement.BalanceAfter,
+            movement.InvoiceId.ToString(),
+            movement.CreatedAt)).ToArray();
+
+        return new ListMovementsToolResult(items, result.Page, result.PageSize, result.TotalCount, null, null);
+    }
+
     private static ProductToolItem ToToolProduct(ProductResponse product) =>
         new(product.Id.ToString(), product.Code, product.Description, product.Balance);
 
@@ -170,5 +252,31 @@ public sealed record ProductAvailabilityToolItem(
 public sealed record CheckAvailabilityToolResult(
     bool AllAvailable,
     IReadOnlyList<ProductAvailabilityToolItem> Items,
+    string? ErrorCode,
+    string? ErrorMessage);
+
+public sealed record ListProductsToolResult(
+    IReadOnlyList<ProductToolItem> Products,
+    int Page,
+    int PageSize,
+    int Total,
+    string? ErrorCode,
+    string? ErrorMessage);
+
+public sealed record MovementToolItem(
+    string ProductId,
+    string Code,
+    string Description,
+    int Quantity,
+    int BalanceBefore,
+    int BalanceAfter,
+    string InvoiceId,
+    DateTimeOffset CreatedAt);
+
+public sealed record ListMovementsToolResult(
+    IReadOnlyList<MovementToolItem> Movements,
+    int Page,
+    int PageSize,
+    int Total,
     string? ErrorCode,
     string? ErrorMessage);
