@@ -76,7 +76,7 @@ jobs:
           product_json=$(curl --fail --silent --show-error \
             -H "$auth" -H 'Content-Type: application/json' \
             -d '{"code":"CI-SMOKE","description":"Produto de integração","balance":3,"tracksStock":true}' \
-            $base/inventory-api/api/products)
+            $base/billing-api/api/catalog/products)
           product_id=$(jq -er '.id' <<<"$product_json")
 
           invoice_json=$(curl --fail --silent --show-error \
@@ -99,7 +99,7 @@ jobs:
           service_json=$(curl --fail --silent --show-error \
             -H "$auth" -H 'Content-Type: application/json' \
             -d '{"code":"CI-SERVICO","description":"Serviço","balance":0,"tracksStock":false}' \
-            $base/inventory-api/api/products)
+            $base/billing-api/api/catalog/products)
           service_id=$(jq -er '.id' <<<"$service_json")
           service_invoice=$(curl --fail --silent --show-error \
             -H "$auth" -H 'Content-Type: application/json' \
