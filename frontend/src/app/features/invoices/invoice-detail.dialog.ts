@@ -371,7 +371,7 @@ export class InvoiceDetailDialog implements OnInit {
   }
 
   close(): void {
-    if (!this.closing) this.dialogRef.close();
+    if (!this.closing && !this.polling && !this.downloadingPdf) this.dialogRef.close();
   }
 
   primaryAction(): void {
@@ -407,6 +407,10 @@ export class InvoiceDetailDialog implements OnInit {
     if (!this.invoice || this.closing || this.polling) return;
     this.confirming = false;
     this.closing = true;
+    // Os botões do modal já refletem esse estado, mas Esc e clique no fundo
+    // passam direto pelo MatDialog. Não permita que a pessoa perca o retorno
+    // enquanto a mesma tentativa idempotente está sendo confirmada.
+    this.dialogRef.disableClose = true;
     this.downloadAfterClose = true;
     this.operationError = null;
     this.invoiceService
@@ -426,10 +430,13 @@ export class InvoiceDetailDialog implements OnInit {
           this.notification.success('Nota fechada', 'O estoque foi atualizado e o PDF está disponível.');
           if (this.downloadAfterClose) {
             this.downloadAfterClose = false;
-            this.downloadPdf();
+            this.downloadPdf(true);
           }
         },
-        error: (error: unknown) => (this.operationError = this.apiError.from(error)),
+        error: (error: unknown) => {
+          this.dialogRef.disableClose = false;
+          this.operationError = this.apiError.from(error);
+        },
       });
   }
 
@@ -437,6 +444,7 @@ export class InvoiceDetailDialog implements OnInit {
   reconcile(): void {
     if (this.polling || !this.invoice) return;
     this.polling = true;
+    this.dialogRef.disableClose = true;
     this.operationError = null;
     timer(0, 2000)
       .pipe(
@@ -456,21 +464,27 @@ export class InvoiceDetailDialog implements OnInit {
             this.notification.success('Nota fechada', 'Resultado confirmado pela reconciliação.');
             if (this.downloadAfterClose) {
               this.downloadAfterClose = false;
-              this.downloadPdf();
+              this.downloadPdf(true);
             }
             return;
           }
           this.downloadAfterClose = false;
+          this.dialogRef.disableClose = false;
           this.notification.warning(
             'Fechamento rejeitado',
             'Revise os itens da nota antes de tentar novamente.',
           );
         },
-        error: (error: unknown) => (this.operationError = this.apiError.from(error)),
+        error: (error: unknown) => {
+          this.downloadAfterClose = false;
+          this.dialogRef.disableClose = false;
+          this.operationError = this.apiError.from(error);
+        },
       });
   }
 
-  downloadPdf(): void {
+  /** Fecha o detalhe somente depois que o navegador recebeu o PDF inicial. */
+  downloadPdf(closeDialogAfterSuccess = false): void {
     if (!this.invoice || this.downloadingPdf) return;
     this.downloadingPdf = true;
     this.operationError = null;
@@ -489,8 +503,12 @@ export class InvoiceDetailDialog implements OnInit {
           anchor.download = `nota-${number}.pdf`;
           anchor.click();
           URL.revokeObjectURL(url);
+          if (closeDialogAfterSuccess) this.dialogRef.close();
         },
         error: (error: unknown) => {
+          // O fechamento da nota já é definitivo, mas o detalhe precisa ficar
+          // disponível para a pessoa ver o erro e tentar baixar a segunda via.
+          this.dialogRef.disableClose = false;
           this.operationError = this.apiError.from(error);
           this.notification.error('PDF indisponível', 'A nota está segura; apenas a geração do documento falhou.');
         },

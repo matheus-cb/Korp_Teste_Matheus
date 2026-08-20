@@ -36,11 +36,11 @@ const MAX_BYTES = 2 * 1024 * 1024;
   template: `
     <app-modal-shell
       title="Importar notas"
-      confirmLabel="Importar"
+      [confirmLabel]="result ? 'Concluir' : 'Importar'"
       dismissLabel="Sair"
       busyLabel="Importando…"
       [busy]="importing"
-      [canConfirm]="!!file"
+      [canConfirm]="!!file || !!result"
       (confirm)="submit()"
       (dismiss)="close()"
     >

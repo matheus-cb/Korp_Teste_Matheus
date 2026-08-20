@@ -5,6 +5,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { finalize } from 'rxjs';
+import type { AiDraftItem } from '../../core/models/ai-draft.model';
 import type { UiError } from '../../core/models/api.models';
 import type { InvoiceItem } from '../../core/models/invoice.model';
 import type { Product } from '../../core/models/product.model';
@@ -279,14 +280,17 @@ export class CreateInvoiceDialog implements OnInit {
       });
   }
 
-  private mergeDraft(draftItems: Array<{ productId: string; quantity: number }>): void {
+  private mergeDraft(draftItems: AiDraftItem[]): void {
     for (const draft of draftItems.slice(0, 20)) {
       if (draft.quantity <= 0 || !Number.isInteger(draft.quantity)) continue;
       const product = this.products.find((candidate) => candidate.id === draft.productId);
       this.mergeItem({
         productId: draft.productId,
-        code: product?.code ?? '—',
-        description: product?.description ?? 'Produto do rascunho',
+        // A lista do catálogo chega em paralelo. Enquanto ela não responde,
+        // preserve o retrato devolvido pelo assistente em vez de mostrar
+        // "—" e "Produto do rascunho" para um item já reconhecido.
+        code: product?.code ?? draft.code,
+        description: product?.description ?? draft.description,
         quantity: draft.quantity,
       });
     }

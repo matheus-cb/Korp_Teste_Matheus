@@ -86,7 +86,23 @@ public sealed class InvoiceImportService(
                 {
                     // Reaproveita a saga: mesma tentativa, mesma chave idempotente.
                     var (_, attempt) = await invoices.BeginClosureAsync(invoice.Id, cancellationToken);
-                    await closures.ProcessAsync(attempt.Id, true, cancellationToken);
+                    var closure = await closures.ProcessAsync(attempt.Id, true, cancellationToken);
+                    if (closure.State == ClosureAttemptState.Pending)
+                    {
+                        errors.Add(new ImportRowError(
+                            group.Reference,
+                            0,
+                            closure.ErrorCode ?? "CLOSURE_PENDING",
+                            "A nota foi criada, mas o fechamento ainda está sendo confirmado."));
+                    }
+                    else if (closure.State == ClosureAttemptState.Rejected)
+                    {
+                        errors.Add(new ImportRowError(
+                            group.Reference,
+                            0,
+                            closure.ErrorCode ?? "INVENTORY_REJECTED",
+                            closure.ErrorMessage ?? "A nota foi criada, mas o estoque rejeitou o fechamento."));
+                    }
                 }
             }
             catch (AppException exception)
