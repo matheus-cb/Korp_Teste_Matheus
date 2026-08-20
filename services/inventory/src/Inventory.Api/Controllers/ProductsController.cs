@@ -7,20 +7,8 @@ namespace Inventory.Api.Controllers;
 
 [ApiController]
 [Route("api/products")]
-public sealed class ProductsController(IProductCatalog products) : ControllerBase
+public sealed class ProductsController(IReadOnlyProductCatalog products) : ControllerBase
 {
-    [HttpPost]
-    [ProducesResponseType<ProductResponse>(StatusCodes.Status201Created)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<ProductResponse>> Create(
-        [FromBody] CreateProductRequest request,
-        CancellationToken cancellationToken)
-    {
-        var product = await products.CreateAsync(request, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
-    }
-
     [HttpGet]
     [ProducesResponseType<ProductPageResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]

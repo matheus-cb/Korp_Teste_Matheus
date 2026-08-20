@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular
 import type { OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { filter, finalize, switchMap, take, tap, timeout, timer } from 'rxjs';
@@ -15,6 +16,7 @@ import { NotificationService } from '../../core/services/notification.service';
 import { InlineAlertComponent } from '../../shared/inline-alert.component';
 import { LoadingStateComponent } from '../../shared/loading-state.component';
 import { ModalShellComponent } from '../../shared/modal-shell.component';
+import { CreateInvoiceDialog } from './create-invoice.dialog';
 import { StatusPillComponent, toDisplayState } from '../../shared/status-pill.component';
 
 /**
@@ -59,6 +61,9 @@ import { StatusPillComponent, toDisplayState } from '../../shared/status-pill.co
           <app-status-pill [state]="toDisplayState(invoice.status, invoice.closure)" />
           <span class="note">Documento demonstrativo · sem validade fiscal</span>
           <div class="head-actions">
+            @if (invoice.status === 'Open' && invoice.closure?.state !== 'Pending') {
+              <button type="button" class="nf-btn" (click)="editInvoice()"><mat-icon svgIcon="pencil" />Editar</button>
+            }
             <button type="button" class="nf-btn" (click)="exportCsv()">
               <mat-icon svgIcon="download" />
               Excel
@@ -159,6 +164,10 @@ import { StatusPillComponent, toDisplayState } from '../../shared/status-pill.co
             <dt>Fechada por</dt>
             <dd>{{ invoice.closedBy ?? '—' }}</dd>
           </div>
+          <div>
+            <dt>Última edição</dt>
+            <dd>{{ invoice.updatedBy ?? invoice.createdBy }}</dd>
+          </div>
         </dl>
 
         <table class="data-table items">
@@ -190,6 +199,9 @@ import { StatusPillComponent, toDisplayState } from '../../shared/status-pill.co
           Código e descrição são um retrato do momento da emissão: mudanças no catálogo
           não alteram esta nota.
         </p>
+        @if (invoice.auditEvents?.length) {
+          <section class="history"><strong>Histórico</strong><ul>@for (event of invoice.auditEvents; track event.occurredAt + event.type) {<li>{{ event.type === 'Created' ? 'Criada' : event.type === 'Edited' ? 'Editada' : 'Fechada' }} por {{ event.actorName }} · {{ event.occurredAt | date: 'dd/MM/yyyy HH:mm' }}</li>}</ul></section>
+        }
       }
     </app-modal-shell>
   `,
@@ -346,6 +358,7 @@ export class InvoiceDetailDialog implements OnInit {
   private readonly exporter = inject(ExportService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly datePipe = new DatePipe('pt-BR');
+  private readonly dialog = inject(MatDialog);
 
   invoice: Invoice | null = null;
   loading = true;
@@ -481,6 +494,12 @@ export class InvoiceDetailDialog implements OnInit {
           this.operationError = this.apiError.from(error);
         },
       });
+  }
+
+  editInvoice(): void {
+    if (!this.invoice || this.invoice.status !== 'Open' || this.invoice.closure?.state === 'Pending') return;
+    this.dialog.open(CreateInvoiceDialog, { width: 'var(--modal-md)', panelClass: 'nf-dialog', data: { invoice: this.invoice } })
+      .afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((id?: string) => { if (id) this.load(); });
   }
 
   /** Fecha o detalhe somente depois que o navegador recebeu o PDF inicial. */

@@ -7,6 +7,7 @@ import type { PageResult, PagedResponse } from '../models/api.models';
 import type {
   CloseInvoiceResult,
   CreateInvoiceRequest,
+  UpdateInvoiceRequest,
   Invoice,
   InvoiceSummary,
   InvoiceStatus,
@@ -36,6 +37,12 @@ export class InvoiceService {
 
   create(request: CreateInvoiceRequest): Observable<Invoice> {
     return this.http.post<Invoice>(this.baseUrl, request);
+  }
+
+  update(id: string, request: UpdateInvoiceRequest, version: string): Observable<Invoice> {
+    return this.http.put<Invoice>(`${this.baseUrl}/${encodeURIComponent(id)}`, request, {
+      headers: { 'If-Match': `"${version}"` },
+    });
   }
 
   close(id: string): Observable<CloseInvoiceResult> {

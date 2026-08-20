@@ -40,4 +40,19 @@ public sealed class InvoiceServiceTests
 
         Assert.Equal("PRODUCT_NOT_FOUND", exception.Code);
     }
+
+    [Fact]
+    public async Task Update_rejects_stale_version()
+    {
+        var factory = new InMemoryBillingDbFactory(Guid.NewGuid().ToString());
+        var productId = Guid.NewGuid();
+        var inventory = new FakeInventoryClient();
+        inventory.Products[productId] = new(productId, "P", "Produto", 5);
+        await using var db = factory.CreateDbContext();
+        var service = new InvoiceService(db, inventory, TimeProvider.System, TestHttpContext.For("Ana"));
+        var invoice = await service.CreateAsync(new CreateInvoiceRequest([new(productId, 1)]), CancellationToken.None);
+
+        var error = await Assert.ThrowsAsync<ConflictException>(() => service.UpdateAsync(invoice.Id, new UpdateInvoiceRequest([new(productId, 2)]), Guid.NewGuid(), CancellationToken.None));
+        Assert.Equal("INVOICE_VERSION_CONFLICT", error.Code);
+    }
 }

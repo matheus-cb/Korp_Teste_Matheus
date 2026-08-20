@@ -37,8 +37,12 @@ export interface Invoice {
   /** Quem confirmou cada operação — rastreabilidade. */
   createdBy: string;
   closedBy?: string | null;
+  updatedAt?: string;
+  updatedBy?: string;
+  version?: string;
   items: InvoiceItem[];
   closure?: ClosureAttempt | null;
+  auditEvents?: Array<{ type: string; actorName: string; occurredAt: string }>;
 }
 
 export interface InvoiceSummary {
@@ -50,6 +54,8 @@ export interface InvoiceSummary {
   closedAt?: string | null;
   createdBy: string;
   closedBy?: string | null;
+  updatedAt?: string;
+  updatedBy?: string;
   closure?: ClosureAttempt | null;
 }
 
@@ -59,6 +65,8 @@ export interface CreateInvoiceRequest {
     quantity: number;
   }>;
 }
+
+export type UpdateInvoiceRequest = CreateInvoiceRequest;
 
 export interface CloseInvoiceResult {
   httpStatus: number;

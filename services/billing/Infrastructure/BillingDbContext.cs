@@ -12,6 +12,7 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options)
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<UserSession> Sessions => Set<UserSession>();
     public DbSet<InvoiceImport> Imports => Set<InvoiceImport>();
+    public DbSet<InvoiceAuditEvent> InvoiceAuditEvents => Set<InvoiceAuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -27,8 +28,21 @@ public sealed class BillingDbContext(DbContextOptions<BillingDbContext> options)
             entity.Property(x => x.Version).IsConcurrencyToken();
             entity.Property(x => x.CreatedBy).HasMaxLength(120).IsRequired().HasDefaultValue("sistema");
             entity.Property(x => x.ClosedBy).HasMaxLength(120);
+            entity.Property(x => x.UpdatedBy).HasMaxLength(120).IsRequired().HasDefaultValue("sistema");
+            entity.Property(x => x.UpdatedAt).IsRequired();
             entity.HasMany(x => x.Items).WithOne().HasForeignKey(x => x.InvoiceId).OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(x => x.ClosureAttempts).WithOne().HasForeignKey(x => x.InvoiceId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.AuditEvents).WithOne().HasForeignKey(x => x.InvoiceId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<InvoiceAuditEvent>(entity =>
+        {
+            entity.ToTable("invoice_audit_events");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Type).HasMaxLength(24).IsRequired();
+            entity.Property(x => x.ActorName).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.OccurredAt).IsRequired();
+            entity.HasIndex(x => new { x.InvoiceId, x.OccurredAt });
         });
 
         modelBuilder.Entity<InvoiceImport>(entity =>

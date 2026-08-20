@@ -147,6 +147,7 @@ public sealed class ProposedActionService(
                         proposto.Description,
                         proposto.Balance,
                         proposto.TracksStock,
+                        httpContext.ActingUserName(),
                         cancellationToken);
                     criados.Add(criado.Id);
                 }

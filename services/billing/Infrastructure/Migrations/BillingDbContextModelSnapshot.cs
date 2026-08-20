@@ -50,10 +50,24 @@ namespace Billing.Api.Infrastructure.Migrations
                     b.Property<string>("CreatedBy").IsRequired().ValueGeneratedOnAdd().HasMaxLength(120).HasColumnType("character varying(120)").HasDefaultValue("sistema");
                     b.Property<long>("Number").ValueGeneratedOnAdd().HasColumnType("bigint").HasDefaultValueSql("nextval('invoice_number_seq')");
                     b.Property<string>("Status").IsRequired().HasMaxLength(16).HasColumnType("character varying(16)");
+                    b.Property<DateTimeOffset>("UpdatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<string>("UpdatedBy").IsRequired().ValueGeneratedOnAdd().HasMaxLength(120).HasColumnType("character varying(120)").HasDefaultValue("sistema");
                     b.Property<Guid>("Version").IsConcurrencyToken().HasColumnType("uuid");
                     b.HasKey("Id");
                     b.HasIndex("Number").IsUnique();
                     b.ToTable("invoices", (string)null);
+                });
+
+            modelBuilder.Entity("Billing.Api.Domain.InvoiceAuditEvent", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
+                    b.Property<string>("ActorName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
+                    b.Property<Guid>("InvoiceId").HasColumnType("uuid");
+                    b.Property<DateTimeOffset>("OccurredAt").HasColumnType("timestamp with time zone");
+                    b.Property<string>("Type").IsRequired().HasMaxLength(24).HasColumnType("character varying(24)");
+                    b.HasKey("Id");
+                    b.HasIndex("InvoiceId", "OccurredAt");
+                    b.ToTable("invoice_audit_events", (string)null);
                 });
 
             modelBuilder.Entity("Billing.Api.Domain.InvoiceImport", b =>
@@ -114,6 +128,11 @@ namespace Billing.Api.Infrastructure.Migrations
                     b.ToTable("invoice_closure_attempts", (string)null);
                 });
 
+            modelBuilder.Entity("Billing.Api.Domain.InvoiceAuditEvent", b =>
+                {
+                    b.HasOne("Billing.Api.Domain.Invoice", null).WithMany("AuditEvents").HasForeignKey("InvoiceId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                });
+
             modelBuilder.Entity("Billing.Api.Domain.InvoiceItem", b =>
                 {
                     b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
@@ -158,6 +177,7 @@ namespace Billing.Api.Infrastructure.Migrations
             modelBuilder.Entity("Billing.Api.Domain.Invoice", b =>
                 {
                     b.Navigation("ClosureAttempts");
+                    b.Navigation("AuditEvents");
                     b.Navigation("Items");
                 });
 #pragma warning restore 612, 618

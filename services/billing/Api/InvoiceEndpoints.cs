@@ -13,6 +13,7 @@ public static class InvoiceEndpoints
         var group = endpoints.MapGroup("/api/invoices").WithTags("Invoices");
 
         group.MapPost("/", CreateAsync).Produces<InvoiceResponse>(StatusCodes.Status201Created);
+        group.MapPut("/{id:guid}", UpdateAsync).Produces<InvoiceResponse>().ProducesProblem(StatusCodes.Status409Conflict);
         group.MapGet("/", ListAsync).Produces<PagedResponse<InvoiceSummaryResponse>>();
         group.MapGet("/{id:guid}", GetAsync).Produces<InvoiceResponse>().ProducesProblem(StatusCodes.Status404NotFound);
         group.MapPost("/{id:guid}/close", CloseAsync)
@@ -30,6 +31,21 @@ public static class InvoiceEndpoints
     {
         var invoice = await service.CreateAsync(request, cancellationToken);
         return Results.Created($"/api/invoices/{invoice.Id}", invoice.ToResponse());
+    }
+
+    private static async Task<IResult> UpdateAsync(
+        Guid id,
+        UpdateInvoiceRequest request,
+        HttpRequest httpRequest,
+        InvoiceService service,
+        CancellationToken cancellationToken)
+    {
+        var rawVersion = httpRequest.Headers["If-Match"].FirstOrDefault()?.Trim().Trim('"');
+        if (!Guid.TryParse(rawVersion, out var version))
+            throw new ConflictException("INVOICE_VERSION_REQUIRED", "Atualize a nota antes de salvar para evitar sobrescrever alterações de outra pessoa.");
+
+        var invoice = await service.UpdateAsync(id, request, version, cancellationToken);
+        return Results.Ok(invoice.ToResponse());
     }
 
     private static async Task<IResult> ListAsync(
@@ -70,6 +86,8 @@ public static class InvoiceEndpoints
                 invoice.ClosedAt,
                 invoice.CreatedBy,
                 invoice.ClosedBy,
+                invoice.UpdatedAt,
+                invoice.UpdatedBy,
                 attempt?.ToResponse());
         }).ToList();
         return Results.Ok(new PagedResponse<InvoiceSummaryResponse>(items, requestedPage, requestedPageSize, total));
@@ -115,6 +133,7 @@ public static class InvoiceEndpoints
         await db.Invoices.AsNoTracking()
             .Include(x => x.Items)
             .Include(x => x.ClosureAttempts)
+            .Include(x => x.AuditEvents)
             .AsSplitQuery()
             .SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
         ?? throw new ResourceNotFoundException("INVOICE_NOT_FOUND", "Nota não encontrada.");

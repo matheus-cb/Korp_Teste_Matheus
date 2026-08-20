@@ -2,12 +2,12 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular
 import type { OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { finalize } from 'rxjs';
 import type { AiDraftItem } from '../../core/models/ai-draft.model';
 import type { UiError } from '../../core/models/api.models';
-import type { InvoiceItem } from '../../core/models/invoice.model';
+import type { Invoice, InvoiceItem } from '../../core/models/invoice.model';
 import type { Product } from '../../core/models/product.model';
 import { ApiErrorService } from '../../core/services/api-error.service';
 import { DraftTransferService } from '../../core/services/draft-transfer.service';
@@ -28,8 +28,8 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
   ],
   template: `
     <app-modal-shell
-      title="Nova nota fiscal"
-      confirmLabel="Criar nota"
+      [title]="editing ? 'Editar nota fiscal' : 'Nova nota fiscal'"
+      [confirmLabel]="editing ? 'Salvar alterações' : 'Criar nota'"
       dismissLabel="Sair"
       busyLabel="Criando…"
       [busy]="saving"
@@ -189,6 +189,8 @@ export class CreateInvoiceDialog implements OnInit {
   private readonly notification = inject(NotificationService);
   private readonly transfer = inject(DraftTransferService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly data = inject<{ invoice?: Invoice } | null>(MAT_DIALOG_DATA, { optional: true });
+  readonly editing = !!this.data?.invoice;
 
   readonly itemForm = this.formBuilder.nonNullable.group({
     productId: ['', Validators.required],
@@ -211,8 +213,11 @@ export class CreateInvoiceDialog implements OnInit {
 
   ngOnInit(): void {
     // Rascunho vindo do assistente entra já preenchido para revisão.
-    const draft = this.transfer.take();
-    if (draft.length) this.mergeDraft(draft);
+    if (this.data?.invoice) this.items = this.data.invoice.items.map((item) => ({ ...item }));
+    else {
+      const draft = this.transfer.take();
+      if (draft.length) this.mergeDraft(draft);
+    }
     this.loadProducts();
   }
 
@@ -260,20 +265,19 @@ export class CreateInvoiceDialog implements OnInit {
     if (!this.items.length || this.saving) return;
     this.saving = true;
     this.createError = null;
-    this.invoiceService
-      .create({
-        items: this.items.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-        })),
-      })
+    const request = { items: this.items.map((item) => ({ productId: item.productId, quantity: item.quantity })) };
+    const existing = this.data?.invoice;
+    const request$ = existing
+      ? this.invoiceService.update(existing.id, request, existing.version ?? '')
+      : this.invoiceService.create(request);
+    request$
       .pipe(
         finalize(() => (this.saving = false)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: (invoice) => {
-          this.notification.success('Nota criada', `Nota #${invoice.number} está aberta e pronta para fechamento.`);
+          this.notification.success(this.editing ? 'Nota atualizada' : 'Nota criada', `Nota #${invoice.number} está aberta e pronta para fechamento.`);
           this.dialogRef.close(invoice.id);
         },
         error: (error: unknown) => (this.createError = this.apiError.from(error)),

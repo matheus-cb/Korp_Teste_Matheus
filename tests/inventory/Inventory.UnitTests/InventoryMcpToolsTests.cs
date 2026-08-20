@@ -139,7 +139,11 @@ public sealed class InventoryMcpToolsTests
                     "Keyboard",
                     7,
                     true,
-                    new DateTimeOffset(2026, 8, 13, 12, 0, 0, TimeSpan.Zero))
+                    new DateTimeOffset(2026, 8, 13, 12, 0, 0, TimeSpan.Zero),
+                    "Sistema",
+                    new DateTimeOffset(2026, 8, 13, 12, 0, 0, TimeSpan.Zero),
+                    "Sistema",
+                    Guid.NewGuid())
             ],
             1,
             5,

@@ -93,6 +93,53 @@ public sealed class InvoiceClosureIntegrationTests(BillingApiFixture fixture)
         Assert.Equal([attempt.Id], fixture.Inventory.GetAttemptIds);
     }
 
+    [Fact]
+    public async Task Open_invoice_can_be_edited_once_and_records_actor_before_closure()
+    {
+        fixture.Inventory.Reset();
+        var firstProduct = Guid.NewGuid();
+        var replacementProduct = Guid.NewGuid();
+        fixture.Inventory.AddProduct(firstProduct, "EDT-01", "Produto inicial", 5);
+        fixture.Inventory.AddProduct(replacementProduct, "EDT-02", "Produto editado", 5);
+        var created = await CreateInvoiceAsync(firstProduct, 1);
+
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/invoices/{created.Id}")
+        {
+            Content = JsonContent.Create(new UpdateInvoiceRequest([new CreateInvoiceItemRequest(replacementProduct, 2)]))
+        };
+        request.Headers.TryAddWithoutValidation("If-Match", $"\"{created.Version}\"");
+        using var response = await fixture.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var updated = await response.Content.ReadFromJsonAsync<InvoiceResponse>()
+            ?? throw new InvalidOperationException("Billing returned an empty edited invoice.");
+
+        Assert.NotEqual(created.Version, updated.Version);
+        Assert.Equal("Operador de Faturamento", updated.UpdatedBy);
+        Assert.Contains(updated.AuditEvents, entry => entry.Type == "Edited" && entry.ActorName == "Operador de Faturamento");
+        var item = Assert.Single(updated.Items);
+        Assert.Equal(replacementProduct, item.ProductId);
+        Assert.Equal(2, item.Quantity);
+
+        using var stale = new HttpRequestMessage(HttpMethod.Put, $"/api/invoices/{created.Id}")
+        {
+            Content = JsonContent.Create(new UpdateInvoiceRequest([new CreateInvoiceItemRequest(firstProduct, 1)]))
+        };
+        stale.Headers.TryAddWithoutValidation("If-Match", $"\"{created.Version}\"");
+        using var staleResponse = await fixture.Client.SendAsync(stale);
+        Assert.Equal(HttpStatusCode.Conflict, staleResponse.StatusCode);
+
+        using var closeResponse = await CloseAsync(created.Id);
+        closeResponse.EnsureSuccessStatusCode();
+        using var afterClose = new HttpRequestMessage(HttpMethod.Put, $"/api/invoices/{created.Id}")
+        {
+            Content = JsonContent.Create(new UpdateInvoiceRequest([new CreateInvoiceItemRequest(firstProduct, 1)]))
+        };
+        afterClose.Headers.TryAddWithoutValidation("If-Match", $"\"{updated.Version}\"");
+        using var afterCloseResponse = await fixture.Client.SendAsync(afterClose);
+        Assert.Equal(HttpStatusCode.Conflict, afterCloseResponse.StatusCode);
+        Assert.Equal(3, fixture.Inventory.GetBalance(replacementProduct));
+    }
+
     private async Task<InvoiceResponse> CreateInvoiceAsync(Guid productId, int quantity)
     {
         using var response = await fixture.Client.PostAsJsonAsync(

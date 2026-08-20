@@ -17,6 +17,7 @@ internal sealed class InMemoryBillingDbFactory(string name) : IDbContextFactory<
         Task.FromResult(CreateDbContext());
 }
 
+
 internal sealed class FakeInventoryClient : IInventoryClient
 {
     public Dictionary<Guid, InventoryProduct> Products { get; } = [];
@@ -40,11 +41,19 @@ internal sealed class FakeInventoryClient : IInventoryClient
         string description,
         int balance,
         bool tracksStock,
+        string actorName,
         CancellationToken cancellationToken)
     {
         var product = new InventoryProduct(Guid.NewGuid(), code, description, balance, tracksStock);
         Products[product.Id] = product;
         Created.Add(product);
+        return Task.FromResult(product);
+    }
+
+    public Task<InventoryProduct> UpdateProductAsync(Guid id, string code, string description, bool tracksStock, Guid version, string actorName, CancellationToken cancellationToken)
+    {
+        var product = new InventoryProduct(id, code, description, Products.GetValueOrDefault(id)?.Balance ?? 0, tracksStock);
+        Products[id] = product;
         return Task.FromResult(product);
     }
 
