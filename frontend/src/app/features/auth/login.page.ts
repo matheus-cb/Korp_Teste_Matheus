@@ -52,13 +52,23 @@ import { AuthService } from '../../core/services/auth.service';
           </button>
         </form>
 
-        @if (mostrarCredenciaisDemo) {
-          <footer class="demo">
-            <strong>Ambiente demonstrativo</strong>
-            <span>operador / notaflow123</span>
-            <span>supervisor / notaflow123</span>
-          </footer>
-        }
+        <footer class="demo">
+          <strong>Ambiente demonstrativo</strong>
+          <p class="demo-hint">Entre com um clique. Senha de todos: <code>notaflow123</code></p>
+          <div class="demo-actions">
+            @for (conta of contasDemo; track conta.userName) {
+              <button
+                type="button"
+                class="nf-btn demo-btn"
+                [disabled]="loading"
+                (click)="entrarComo(conta)"
+              >
+                {{ conta.rotulo }}
+                <small>{{ conta.userName }}</small>
+              </button>
+            }
+          </div>
+        </footer>
       </section>
     </main>
   `,
@@ -152,20 +162,60 @@ import { AuthService } from '../../core/services/auth.service';
       letter-spacing: 0.06em;
       text-transform: uppercase;
     }
+
+    .demo-hint {
+      margin: 2px 0 var(--sp-2);
+    }
+
+    .demo-hint code {
+      color: var(--n-600);
+      font-size: var(--fs-sm);
+    }
+
+    .demo-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--sp-2);
+    }
+
+    .demo-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: var(--sp-2);
+      border: 1px solid var(--n-200);
+      background: #fff;
+      color: var(--n-600);
+      font-weight: 600;
+      gap: 1px;
+      line-height: 1.2;
+    }
+
+    .demo-btn small {
+      color: var(--n-500);
+      font-size: var(--fs-xs);
+      font-weight: 400;
+    }
+
+    .demo-btn:hover:not(:disabled) {
+      border-color: var(--n-300);
+      background: var(--n-50);
+    }
   `,
   changeDetection: ChangeDetectionStrategy.Default,
 })
 export class LoginPage {
   /**
-   * A dica de credenciais serve ao avaliador rodando o projeto na propria
-   * maquina. Numa instancia alcancavel pela rede ela vira o contrario: entrega
-   * usuarios validos e anuncia uma senha que ali nem e mais a verdadeira,
-   * porque o seeding passa a usar Seed:Password. O corte e por hostname, e nao
-   * por environment.production, porque o Dockerfile do compose local tambem
-   * builda em modo producao -- e ali a dica ainda faz sentido.
+   * Contas de demonstracao. Ficam visiveis de proposito, inclusive na instancia
+   * publicada: o NotaFlow e demonstrativo, nao guarda dado real, e esconder a
+   * credencial so atrapalharia quem vem conhecer o fluxo. Se um dia a aplicacao
+   * passar a valer, isto sai junto com o seeding.
    */
-  protected readonly mostrarCredenciaisDemo =
-    typeof location !== 'undefined' && ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+  protected readonly contasDemo = [
+    { rotulo: 'Operador', userName: 'operador', password: 'notaflow123' },
+    { rotulo: 'Supervisor', userName: 'supervisor', password: 'notaflow123' },
+  ] as const;
 
   private readonly formBuilder = inject(FormBuilder);
   private readonly auth = inject(AuthService);
@@ -179,6 +229,13 @@ export class LoginPage {
 
   loading = false;
   error = '';
+
+  /** Preenche o formulario com uma conta de demonstracao e ja entra. */
+  entrarComo(conta: { userName: string; password: string }): void {
+    if (this.loading) return;
+    this.form.setValue({ userName: conta.userName, password: conta.password });
+    this.submit();
+  }
 
   invalid(name: 'userName' | 'password'): boolean {
     const control = this.form.controls[name];
