@@ -22,9 +22,17 @@ public sealed class InventoryApiTests(InventoryApiFixture fixture)
         Assert.Equal(code, found.Code);
         Assert.Equal(9, found.Balance);
 
-        using var duplicateResponse = await fixture.Client.PostAsJsonAsync(
+        using var publicWriteResponse = await fixture.Client.PostAsJsonAsync(
             "/api/products",
             new CreateProductRequest(code.ToLowerInvariant(), "Duplicate", 1, true));
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, publicWriteResponse.StatusCode);
+
+        using var duplicateRequest = new HttpRequestMessage(HttpMethod.Post, "/api/internal/products")
+        {
+            Content = JsonContent.Create(new CreateProductRequest(code.ToLowerInvariant(), "Duplicate", 1, true))
+        };
+        duplicateRequest.Headers.Add("X-Notaflow-Actor", "Integration Test");
+        using var duplicateResponse = await fixture.Client.SendAsync(duplicateRequest);
         Assert.Equal(HttpStatusCode.Conflict, duplicateResponse.StatusCode);
         Assert.Equal("PRODUCT_CODE_ALREADY_EXISTS", await ReadProblemCodeAsync(duplicateResponse));
     }
