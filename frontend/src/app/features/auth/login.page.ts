@@ -1,13 +1,14 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatIconModule } from '@angular/material/icon';
 import { Router } from '@angular/router';
 import { finalize } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-login-page',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, MatIconModule],
   template: `
     <main class="screen">
       <section class="card">
@@ -34,13 +35,24 @@ import { AuthService } from '../../core/services/auth.service';
 
           <div class="nf-field" [class.invalid]="invalid('password')">
             <label class="nf-label" for="password">Senha</label>
-            <input
-              id="password"
-              class="nf-input"
-              type="password"
-              formControlName="password"
-              autocomplete="current-password"
-            />
+            <div class="password-control">
+              <input
+                id="password"
+                class="nf-input"
+                [type]="passwordVisible ? 'text' : 'password'"
+                formControlName="password"
+                autocomplete="current-password"
+              />
+              <button
+                type="button"
+                class="password-toggle"
+                [attr.aria-label]="passwordVisible ? 'Ocultar senha' : 'Mostrar senha'"
+                [attr.aria-pressed]="passwordVisible"
+                (click)="togglePasswordVisibility()"
+              >
+                <mat-icon [svgIcon]="passwordVisible ? 'eye-off' : 'eye'" aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
           @if (error) {
@@ -136,6 +148,46 @@ import { AuthService } from '../../core/services/auth.service';
       justify-content: center;
     }
 
+    .password-control {
+      position: relative;
+    }
+
+    .password-control .nf-input {
+      padding-right: 42px;
+    }
+
+    .password-toggle {
+      display: grid;
+      position: absolute;
+      top: 50%;
+      right: 2px;
+      width: 30px;
+      height: 30px;
+      transform: translateY(-50%);
+      border: 0;
+      border-radius: var(--r-sm);
+      color: var(--n-500);
+      background: transparent;
+      cursor: pointer;
+      place-items: center;
+    }
+
+    .password-toggle:hover {
+      color: var(--n-700);
+      background: var(--n-100);
+    }
+
+    .password-toggle:focus-visible {
+      outline: 2px solid var(--brand-600);
+      outline-offset: -2px;
+    }
+
+    .password-toggle mat-icon,
+    .password-toggle mat-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+
     .error {
       margin: 0;
       padding: var(--sp-2) var(--sp-3);
@@ -148,23 +200,24 @@ import { AuthService } from '../../core/services/auth.service';
     .demo {
       display: flex;
       flex-direction: column;
-      padding: var(--sp-3) var(--sp-5) var(--sp-5);
+      padding: var(--sp-4) var(--sp-5) var(--sp-5);
       border-top: 1px solid var(--n-100);
       color: var(--n-500);
       font-size: var(--fs-sm);
-      gap: 2px;
+      gap: var(--sp-1);
     }
 
     .demo strong {
       color: var(--n-600);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-weight: 660;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
     }
 
     .demo-hint {
-      margin: 2px 0 var(--sp-2);
+      margin: 0 0 var(--sp-3);
+      line-height: 1.45;
     }
 
     .demo-hint code {
@@ -180,27 +233,35 @@ import { AuthService } from '../../core/services/auth.service';
 
     .demo-btn {
       display: flex;
+      min-height: 52px;
+      height: auto;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: var(--sp-2);
+      padding: var(--sp-2) var(--sp-3);
       border: 1px solid var(--n-200);
       background: #fff;
       color: var(--n-600);
-      font-weight: 600;
-      gap: 1px;
-      line-height: 1.2;
+      font-weight: 660;
+      gap: var(--sp-1);
+      line-height: 1.15;
     }
 
     .demo-btn small {
       color: var(--n-500);
-      font-size: var(--fs-xs);
+      font-size: var(--fs-sm);
       font-weight: 400;
+      line-height: 1.25;
     }
 
     .demo-btn:hover:not(:disabled) {
       border-color: var(--n-300);
       background: var(--n-50);
+    }
+
+    .demo-btn:focus-visible {
+      outline: 2px solid var(--brand-600);
+      outline-offset: 2px;
     }
   `,
   changeDetection: ChangeDetectionStrategy.Default,
@@ -229,12 +290,17 @@ export class LoginPage {
 
   loading = false;
   error = '';
+  passwordVisible = false;
 
   /** Preenche o formulario com uma conta de demonstracao e ja entra. */
   entrarComo(conta: { userName: string; password: string }): void {
     if (this.loading) return;
     this.form.setValue({ userName: conta.userName, password: conta.password });
     this.submit();
+  }
+
+  togglePasswordVisibility(): void {
+    this.passwordVisible = !this.passwordVisible;
   }
 
   invalid(name: 'userName' | 'password'): boolean {
