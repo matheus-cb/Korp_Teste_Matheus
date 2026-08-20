@@ -9,6 +9,8 @@ import {
   debounceTime,
   distinctUntilChanged,
   finalize,
+  map,
+  merge,
   of,
   startWith,
   switchMap,
@@ -114,6 +116,7 @@ export class ProductsPage {
   private readonly dialog = inject(MatDialog);
   private readonly destroyRef = inject(DestroyRef);
   private readonly searchTerms = new Subject<string>();
+  private readonly recarregar = new Subject<void>();
 
   products: Product[] = [];
   totalRow: Array<Record<string, unknown>> = [];
@@ -166,11 +169,12 @@ export class ProductsPage {
       .on('produtos')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.reload());
-    this.searchTerms
+    // A busca descarta termo repetido; a recarga explícita nunca é descartada.
+    merge(
+      this.searchTerms.pipe(startWith(''), debounceTime(250), distinctUntilChanged()),
+      this.recarregar.pipe(map(() => this.currentQuery)),
+    )
       .pipe(
-        startWith(''),
-        debounceTime(250),
-        distinctUntilChanged(),
         switchMap((query) => {
           this.currentQuery = query;
           this.loading = true;
@@ -210,8 +214,14 @@ export class ProductsPage {
     this.searchTerms.next(value.trim());
   }
 
+  /**
+   * Recarga explícita — botão de atualizar, ou aviso de que os dados mudaram.
+   * Não passa por searchTerms: aquele fluxo tem distinctUntilChanged, que existe
+   * para não repetir busca a cada tecla e, justamente por isso, descartava o
+   * reload quando o termo era o mesmo. O botão nunca recarregava nada.
+   */
   reload(): void {
-    this.searchTerms.next(this.currentQuery);
+    this.recarregar.next();
   }
 
   exportCsv(): void {
