@@ -249,31 +249,53 @@ public sealed class ClaudeBridgeClient(
                 var argumentosNode = decisao["argumentos"] as JsonObject ?? [];
 
                 var local = incluirFerramentasLocais && localTools.Owns(nome);
-                if (!local)
-                    ValidarChamada(nome, argumentosNode, catalogo);
 
-                using var argumentos = JsonDocument.Parse(argumentosNode.ToJsonString());
-                var resultado = local
-                    ? await localTools.CallAsync(nome, argumentos.RootElement, cancellationToken)
-                    : await session.CallAsync(nome, argumentos.RootElement, cancellationToken);
-
-                ferramentasUsadas.Add(nome);
-                passos.Add(new AiDraftStep(nome, Resumir(nome), resultado.IsError ? "failed" : "completed"));
-                GarantirSucesso(nome, resultado);
-
-                // Proveniência: só resultado MCP alimenta o catálogo. As ferramentas
-                // locais respondem sobre notas, e nota não é fonte de produto válido
-                // para um rascunho novo.
-                if (!local)
+                // Erro de chamada volta para a transcrição em vez de abortar tudo.
+                // O modelo erra argumento de vez em quando; abortando, um engano
+                // recuperável vira 500 na cara de quem perguntou, e o teto de
+                // chamadas continua limitando a insistência.
+                string? recusa = null;
+                AiToolResult? resultado = null;
+                try
                 {
-                    if (nome == "check_availability")
-                        ColherProvas(argumentos.RootElement, resultado.Content, provas);
-                    ColherProdutos(resultado.Content, catalogo);
+                    if (!local)
+                        ValidarChamada(nome, argumentosNode, catalogo);
+
+                    using var argumentos = JsonDocument.Parse(argumentosNode.ToJsonString());
+                    var obtido = local
+                        ? await localTools.CallAsync(nome, argumentos.RootElement, cancellationToken)
+                        : await session.CallAsync(nome, argumentos.RootElement, cancellationToken);
+
+                    GarantirSucesso(nome, obtido);
+
+                    if (!local)
+                    {
+                        if (nome == "check_availability")
+                            ColherProvas(argumentos.RootElement, obtido.Content, provas);
+                        ColherProdutos(obtido.Content, catalogo);
+                    }
+
+                    resultado = obtido;
+                }
+                catch (InvalidOperationException erro)
+                {
+                    recusa = erro.Message;
                 }
 
+                ferramentasUsadas.Add(nome);
+                passos.Add(new AiDraftStep(nome, Resumir(nome), recusa is null ? "completed" : "failed"));
+
                 transcricao.AppendLine();
+                if (recusa is not null)
+                {
+                    logger.LogInformation("Ferramenta {Ferramenta} recusada; devolvendo ao modelo.", nome);
+                    transcricao.AppendLine(CultureInfo.InvariantCulture, $"### {nome} falhou: {recusa}");
+                    transcricao.AppendLine("Corrija a chamada ou explique à pessoa por que não deu.");
+                    continue;
+                }
+
                 transcricao.AppendLine(CultureInfo.InvariantCulture, $"### Resultado de {nome}");
-                transcricao.AppendLine(resultado.Content.GetRawText());
+                transcricao.AppendLine(resultado!.Content.GetRawText());
                 continue;
             }
 
