@@ -94,6 +94,7 @@ function balanceState(product: Pick<Product, 'balance' | 'tracksStock'>): Balanc
             [columnDefs]="columns"
             [pinnedBottomRowData]="totalRow"
             [emptyMessage]="emptyMessage()"
+            (rowClicked)="openEdit($event)"
           />
         </div>
       }
@@ -133,6 +134,7 @@ export class ProductsPage {
       valueFormatter: (params) => (params.node?.rowPinned ? 'Total em estoque' : params.value),
     },
     { field: 'description', headerName: 'Descrição', flex: 1, minWidth: 200 },
+    { field: 'updatedBy', headerName: 'Última edição', width: 170, valueFormatter: (params) => params.value ?? '—' },
     {
       field: 'balance',
       headerName: 'Saldo',
@@ -250,5 +252,13 @@ export class ProductsPage {
       .subscribe((created?: Product) => {
         if (created) this.reload();
       });
+  }
+
+  openEdit(product: Product): void {
+    this.dialog.open(ProductFormDialog, {
+      width: 'var(--modal-sm)', panelClass: 'nf-dialog', autoFocus: 'first-tabbable', data: { product },
+    }).afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((updated?: Product) => {
+      if (updated) this.reload();
+    });
   }
 }

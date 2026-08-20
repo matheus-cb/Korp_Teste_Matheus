@@ -32,7 +32,8 @@ public interface IReadOnlyProductCatalog
 /// </summary>
 public interface IProductCatalog : IReadOnlyProductCatalog
 {
-    Task<ProductResponse> CreateAsync(CreateProductRequest request, CancellationToken cancellationToken);
+    Task<ProductResponse> CreateAsync(CreateProductRequest request, string actorName, CancellationToken cancellationToken);
+    Task<ProductResponse> UpdateAsync(Guid id, UpdateProductRequest request, Guid expectedVersion, string actorName, CancellationToken cancellationToken);
 }
 
 public sealed class ProductCatalog(
@@ -41,6 +42,7 @@ public sealed class ProductCatalog(
 {
     public async Task<ProductResponse> CreateAsync(
         CreateProductRequest request,
+        string actorName,
         CancellationToken cancellationToken)
     {
         Product product;
@@ -51,7 +53,8 @@ public sealed class ProductCatalog(
                 request.Description,
                 request.Balance,
                 timeProvider.GetUtcNow(),
-                request.TracksStock);
+                request.TracksStock,
+                actorName);
         }
         catch (ArgumentException exception)
         {
@@ -74,6 +77,34 @@ public sealed class ProductCatalog(
         return ToResponse(product);
     }
 
+    public async Task<ProductResponse> UpdateAsync(Guid id, UpdateProductRequest request, Guid expectedVersion, string actorName, CancellationToken cancellationToken)
+    {
+        var product = await database.Products.SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw InventoryApiException.NotFound(ErrorCodes.ProductNotFound, $"Product '{id}' was not found.");
+        try
+        {
+            product.UpdateMetadata(request.Code, request.Description, request.TracksStock, expectedVersion, timeProvider.GetUtcNow(), actorName);
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch (InvalidOperationException exception) when (exception.Message == "PRODUCT_VERSION_CONFLICT")
+        {
+            throw InventoryApiException.Conflict("PRODUCT_VERSION_CONFLICT", "O produto foi alterado por outra pessoa. Atualize os dados antes de salvar.");
+        }
+        catch (InvalidOperationException exception) when (exception.Message == "PRODUCT_STOCK_CONTROL_REQUIRES_ZERO_BALANCE")
+        {
+            throw InventoryApiException.Conflict("PRODUCT_STOCK_CONTROL_REQUIRES_ZERO_BALANCE", "Zere o saldo por um ajuste auditável antes de desativar o controle de estoque.");
+        }
+        catch (ArgumentException exception)
+        {
+            throw InventoryApiException.BadRequest(ErrorCodes.ValidationError, exception.Message);
+        }
+        catch (DbUpdateException exception) when (IsDuplicateProductCode(exception))
+        {
+            throw InventoryApiException.Conflict(ErrorCodes.ProductCodeAlreadyExists, $"Ja existe um produto com o codigo {Product.NormalizeCode(request.Code)}.");
+        }
+        return ToResponse(product);
+    }
+
     public Task<ProductResponse?> GetAsync(Guid id, CancellationToken cancellationToken) =>
         database.Products
             .AsNoTracking()
@@ -84,7 +115,7 @@ public sealed class ProductCatalog(
                 product.Description,
                 product.Balance,
                 product.TracksStock,
-                product.CreatedAt))
+                product.CreatedAt, product.CreatedBy, product.UpdatedAt, product.UpdatedBy, product.Version))
             .SingleOrDefaultAsync(cancellationToken);
 
     public async Task<ProductPageResponse> SearchAsync(
@@ -124,7 +155,7 @@ public sealed class ProductCatalog(
                 product.Description,
                 product.Balance,
                 product.TracksStock,
-                product.CreatedAt))
+                product.CreatedAt, product.CreatedBy, product.UpdatedAt, product.UpdatedBy, product.Version))
             .ToListAsync(cancellationToken);
 
         return new ProductPageResponse(items, page, pageSize, totalCount);
@@ -190,7 +221,7 @@ public sealed class ProductCatalog(
             product.Description,
             product.Balance,
             product.TracksStock,
-            product.CreatedAt);
+            product.CreatedAt, product.CreatedBy, product.UpdatedAt, product.UpdatedBy, product.Version);
 
     private static string EscapeLikePattern(string value) =>
         value.Replace("\\", "\\\\", StringComparison.Ordinal)

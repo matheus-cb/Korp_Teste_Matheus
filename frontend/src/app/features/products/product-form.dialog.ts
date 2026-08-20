@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { finalize } from 'rxjs';
 import type { UiError } from '../../core/models/api.models';
 import type { Product } from '../../core/models/product.model';
@@ -20,7 +20,7 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
   imports: [InlineAlertComponent, ModalShellComponent, ReactiveFormsModule],
   template: `
     <app-modal-shell
-      title="Novo produto"
+      [title]="editing ? 'Editar produto' : 'Novo produto'"
       confirmLabel="Salvar"
       dismissLabel="Sair"
       busyLabel="Salvando…"
@@ -76,7 +76,7 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
           </span>
         </div>
 
-        @if (form.controls.tracksStock.value) {
+        @if (!editing && form.controls.tracksStock.value) {
           <div class="nf-field" [class.invalid]="invalid('balance')">
             <label class="nf-label" for="product-balance">Saldo inicial<span class="req">*</span></label>
             <input
@@ -94,6 +94,9 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
               <span class="nf-hint">Inteiro maior ou igual a zero</span>
             }
           </div>
+        }
+        @if (editing) {
+          <p class="nf-hint">O saldo não é editado aqui: alterações físicas exigem um ajuste auditável.</p>
         }
 
         @if (error) {
@@ -142,6 +145,8 @@ export class ProductFormDialog {
   private readonly apiError = inject(ApiErrorService);
   private readonly notification = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly data = inject<{ product?: Product } | null>(MAT_DIALOG_DATA, { optional: true });
+  readonly editing = !!this.data?.product;
 
   readonly form = this.formBuilder.nonNullable.group({
     code: ['', [Validators.required, Validators.maxLength(64)]],
@@ -160,6 +165,11 @@ export class ProductFormDialog {
 
   saving = false;
   error: UiError | null = null;
+
+  constructor() {
+    const product = this.data?.product;
+    if (product) this.form.patchValue({ code: product.code, description: product.description, tracksStock: product.tracksStock, balance: product.balance });
+  }
 
   /** Vermelho só depois de tocar no campo. */
   invalid(name: 'code' | 'description' | 'balance'): boolean {
@@ -185,14 +195,11 @@ export class ProductFormDialog {
     const raw = this.form.getRawValue();
     this.saving = true;
     this.error = null;
-    this.productService
-      .create({
-        code: raw.code,
-        description: raw.description,
-        // Sem controle de estoque o saldo não existe como conceito.
-        balance: raw.tracksStock ? raw.balance : 0,
-        tracksStock: raw.tracksStock,
-      })
+    const product = this.data?.product;
+    const request$ = product
+      ? this.productService.update(product.id, { code: raw.code, description: raw.description, tracksStock: raw.tracksStock }, product.version ?? '')
+      : this.productService.create({ code: raw.code, description: raw.description, balance: raw.tracksStock ? raw.balance : 0, tracksStock: raw.tracksStock });
+    request$
       .pipe(
         finalize(() => (this.saving = false)),
         takeUntilDestroyed(this.destroyRef),
@@ -200,7 +207,7 @@ export class ProductFormDialog {
       .subscribe({
         next: (product) => {
           this.notification.success(
-            'Produto cadastrado',
+            this.editing ? 'Produto atualizado' : 'Produto cadastrado',
             `${product.code} — ${product.description}`,
           );
           this.dialogRef.close(product);

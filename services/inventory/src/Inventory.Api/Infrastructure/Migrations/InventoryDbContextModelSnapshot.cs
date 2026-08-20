@@ -26,8 +26,12 @@ internal sealed class InventoryDbContextModelSnapshot : ModelSnapshot
             entity.Property<int>("Balance").HasColumnType("integer");
             entity.Property<string>("Code").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
             entity.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone");
+            entity.Property<string>("CreatedBy").IsRequired().ValueGeneratedOnAdd().HasMaxLength(120).HasColumnType("character varying(120)").HasDefaultValue("sistema");
             entity.Property<string>("Description").IsRequired().HasMaxLength(200).HasColumnType("character varying(200)");
             entity.Property<bool>("TracksStock").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true);
+            entity.Property<DateTimeOffset>("UpdatedAt").HasColumnType("timestamp with time zone");
+            entity.Property<string>("UpdatedBy").IsRequired().ValueGeneratedOnAdd().HasMaxLength(120).HasColumnType("character varying(120)").HasDefaultValue("sistema");
+            entity.Property<Guid>("Version").IsConcurrencyToken().HasColumnType("uuid");
             entity.HasKey("Id");
             entity.HasIndex("Code").IsUnique().HasDatabaseName("UX_Products_Code");
             entity.ToTable("Products", null, table =>

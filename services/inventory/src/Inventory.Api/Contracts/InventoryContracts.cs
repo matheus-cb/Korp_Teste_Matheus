@@ -8,13 +8,22 @@ public sealed record CreateProductRequest(
     [Range(0, int.MaxValue)] int Balance,
     bool TracksStock = true);
 
+public sealed record UpdateProductRequest(
+    [Required, StringLength(64, MinimumLength = 1)] string Code,
+    [Required, StringLength(200, MinimumLength = 1)] string Description,
+    bool TracksStock);
+
 public sealed record ProductResponse(
     Guid Id,
     string Code,
     string Description,
     int Balance,
     bool TracksStock,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string CreatedBy,
+    DateTimeOffset UpdatedAt,
+    string UpdatedBy,
+    Guid Version);
 
 public sealed record ProductPageResponse(
     IReadOnlyList<ProductResponse> Items,

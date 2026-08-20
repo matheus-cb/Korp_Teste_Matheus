@@ -54,6 +54,7 @@ public sealed class InternalServiceAuthenticationMiddleware
     /// </summary>
     private static bool RequiresInternalAuthentication(PathString path) =>
         path.StartsWithSegments("/mcp", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWithSegments("/api/internal", StringComparison.OrdinalIgnoreCase) ||
         path.StartsWithSegments("/api/stock/debits", StringComparison.OrdinalIgnoreCase) ||
         path.StartsWithSegments("/api/stock/reconciliation", StringComparison.OrdinalIgnoreCase);
 

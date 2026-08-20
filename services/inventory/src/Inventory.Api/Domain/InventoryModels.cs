@@ -12,7 +12,8 @@ public sealed class Product
         string description,
         int balance,
         bool tracksStock,
-        DateTimeOffset createdAt)
+        DateTimeOffset createdAt,
+        string createdBy)
     {
         Id = id;
         Code = code;
@@ -20,6 +21,10 @@ public sealed class Product
         Balance = balance;
         TracksStock = tracksStock;
         CreatedAt = createdAt;
+        CreatedBy = createdBy;
+        UpdatedAt = createdAt;
+        UpdatedBy = createdBy;
+        Version = Guid.NewGuid();
     }
 
     public Guid Id { get; private set; }
@@ -36,13 +41,18 @@ public sealed class Product
     public bool TracksStock { get; private set; } = true;
 
     public DateTimeOffset CreatedAt { get; private set; }
+    public string CreatedBy { get; private set; } = "sistema";
+    public DateTimeOffset UpdatedAt { get; private set; }
+    public string UpdatedBy { get; private set; } = "sistema";
+    public Guid Version { get; private set; }
 
     public static Product Create(
         string code,
         string description,
         int balance,
         DateTimeOffset createdAt,
-        bool tracksStock = true)
+        bool tracksStock = true,
+        string createdBy = "sistema")
     {
         var normalizedCode = NormalizeCode(code);
         var normalizedDescription = description?.Trim() ?? string.Empty;
@@ -72,7 +82,29 @@ public sealed class Product
             normalizedDescription,
             effectiveBalance,
             tracksStock,
-            createdAt);
+            createdAt,
+            string.IsNullOrWhiteSpace(createdBy) ? "sistema" : createdBy.Trim());
+    }
+
+    public void UpdateMetadata(string code, string description, bool tracksStock, Guid expectedVersion, DateTimeOffset now, string updatedBy)
+    {
+        if (expectedVersion != Version)
+            throw new InvalidOperationException("PRODUCT_VERSION_CONFLICT");
+        var normalizedCode = NormalizeCode(code);
+        var normalizedDescription = description?.Trim() ?? string.Empty;
+        if (normalizedCode.Length is < 1 or > 64 || normalizedDescription.Length is < 1 or > 200)
+            throw new ArgumentException("Product code and description must be valid.");
+        // Desligar o controle com saldo deixaria unidades fora do extrato. O
+        // ajuste deve ocorrer antes, por um comando de estoque próprio.
+        if (!tracksStock && TracksStock && Balance != 0)
+            throw new InvalidOperationException("PRODUCT_STOCK_CONTROL_REQUIRES_ZERO_BALANCE");
+
+        Code = normalizedCode;
+        Description = normalizedDescription;
+        TracksStock = tracksStock;
+        UpdatedAt = now;
+        UpdatedBy = string.IsNullOrWhiteSpace(updatedBy) ? "sistema" : updatedBy.Trim();
+        Version = Guid.NewGuid();
     }
 
     public void Debit(int quantity)

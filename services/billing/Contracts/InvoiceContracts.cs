@@ -5,12 +5,15 @@ namespace Billing.Api.Contracts;
 
 public sealed record CreateInvoiceRequest(IReadOnlyList<CreateInvoiceItemRequest>? Items);
 public sealed record CreateInvoiceItemRequest(Guid ProductId, int Quantity);
+public sealed record UpdateInvoiceRequest(IReadOnlyList<CreateInvoiceItemRequest>? Items);
 
 public sealed record InvoiceItemResponse(
     Guid ProductId,
     string Code,
     string Description,
     int Quantity);
+
+public sealed record InvoiceAuditEventResponse(string Type, string ActorName, DateTimeOffset OccurredAt);
 
 public sealed record ClosureAttemptResponse(
     Guid AttemptId,
@@ -37,8 +40,12 @@ public sealed record InvoiceResponse(
     DateTimeOffset? ClosedAt,
     string CreatedBy,
     string? ClosedBy,
+    DateTimeOffset UpdatedAt,
+    string UpdatedBy,
+    Guid Version,
     IReadOnlyList<InvoiceItemResponse> Items,
-    ClosureAttemptResponse? Closure);
+    ClosureAttemptResponse? Closure,
+    IReadOnlyList<InvoiceAuditEventResponse> AuditEvents);
 
 public sealed record InvoiceSummaryResponse(
     Guid Id,
@@ -49,6 +56,8 @@ public sealed record InvoiceSummaryResponse(
     DateTimeOffset? ClosedAt,
     string CreatedBy,
     string? ClosedBy,
+    DateTimeOffset UpdatedAt,
+    string UpdatedBy,
     ClosureAttemptResponse? Closure);
 
 public sealed record PagedResponse<T>(IReadOnlyList<T> Items, int Page, int PageSize, int Total);
@@ -66,9 +75,14 @@ public static class InvoiceMappings
             invoice.ClosedAt,
             invoice.CreatedBy,
             invoice.ClosedBy,
+            invoice.UpdatedAt,
+            invoice.UpdatedBy,
+            invoice.Version,
             invoice.Items.Select(x => new InvoiceItemResponse(
                 x.ProductId, x.ProductCode, x.ProductDescription, x.Quantity)).ToList(),
-            attempt?.ToResponse());
+            attempt?.ToResponse(),
+            invoice.AuditEvents.OrderByDescending(x => x.OccurredAt)
+                .Select(x => new InvoiceAuditEventResponse(x.Type, x.ActorName, x.OccurredAt)).ToList());
     }
 
     public static ClosureAttemptResponse ToResponse(this InvoiceClosureAttempt attempt) => new(

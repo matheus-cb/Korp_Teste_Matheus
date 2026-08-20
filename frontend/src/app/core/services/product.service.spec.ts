@@ -50,9 +50,18 @@ describe('ProductService', () => {
     const payload = { code: 'TEC-001', description: 'Teclado', balance: 5, tracksStock: true };
     service.create(payload).subscribe();
 
-    const request = http.expectOne(`${environment.inventoryApiUrl}/products`);
+    const request = http.expectOne(`${environment.billingApiUrl}/catalog/products`);
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual(payload);
     request.flush({ id: 'product-2', ...payload, createdAt: '2026-08-13T12:00:00Z' });
+  });
+
+  it('edita pelo Billing autenticado com versão da leitura', () => {
+    service.update('product-2', { code: 'TEC-001', description: 'Teclado novo', tracksStock: true }, 'version-1').subscribe();
+    const request = http.expectOne(`${environment.billingApiUrl}/catalog/products/product-2`);
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.headers.get('If-Match')).toBe('"version-1"');
+    expect(request.request.body).toEqual({ code: 'TEC-001', description: 'Teclado novo', tracksStock: true });
+    request.flush({});
   });
 });

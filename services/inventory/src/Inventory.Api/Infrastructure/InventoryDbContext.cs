@@ -31,6 +31,10 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
                 .IsRequired()
                 .HasDefaultValue(true);
             builder.Property(product => product.CreatedAt).IsRequired();
+            builder.Property(product => product.CreatedBy).HasMaxLength(120).IsRequired().HasDefaultValue("sistema");
+            builder.Property(product => product.UpdatedAt).IsRequired();
+            builder.Property(product => product.UpdatedBy).HasMaxLength(120).IsRequired().HasDefaultValue("sistema");
+            builder.Property(product => product.Version).IsConcurrencyToken();
             builder.HasIndex(product => product.Code)
                 .IsUnique()
                 .HasDatabaseName("UX_Products_Code");

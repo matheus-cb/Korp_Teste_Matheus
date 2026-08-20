@@ -3,12 +3,13 @@ import { Injectable, inject } from '@angular/core';
 import { map, type Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type { PageResult, PagedResponse } from '../models/api.models';
-import type { CreateProductRequest, Product } from '../models/product.model';
+import type { CreateProductRequest, Product, UpdateProductRequest } from '../models/product.model';
 
 @Injectable({ providedIn: 'root' })
 export class ProductService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.inventoryApiUrl}/products`;
+  private readonly commandUrl = `${environment.billingApiUrl}/catalog/products`;
 
   list(query = '', page = 1, pageSize = 50): Observable<PageResult<Product>> {
     const params = new HttpParams()
@@ -26,7 +27,13 @@ export class ProductService {
   }
 
   create(request: CreateProductRequest): Observable<Product> {
-    return this.http.post<Product>(this.baseUrl, request);
+    return this.http.post<Product>(this.commandUrl, request);
+  }
+
+  update(id: string, request: UpdateProductRequest, version: string): Observable<Product> {
+    return this.http.put<Product>(`${this.commandUrl}/${encodeURIComponent(id)}`, request, {
+      headers: { 'If-Match': `"${version}"` },
+    });
   }
 
   private normalizePage(

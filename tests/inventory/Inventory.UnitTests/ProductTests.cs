@@ -34,4 +34,26 @@ public sealed class ProductTests
         Assert.Equal(0, product.Balance);
         Assert.Throws<InvalidOperationException>(() => product.Debit(1));
     }
+
+    [Fact]
+    public void UpdateMetadataRecordsActorAndChangesVersion()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var product = Product.Create("ABC", "Product", 0, now, true, "Ana");
+        var version = product.Version;
+
+        product.UpdateMetadata("abc-2", "Updated", false, version, now.AddMinutes(1), "Bruno");
+
+        Assert.Equal("ABC-2", product.Code);
+        Assert.Equal("Bruno", product.UpdatedBy);
+        Assert.NotEqual(version, product.Version);
+    }
+
+    [Fact]
+    public void UpdateMetadataCannotDisableStockControlWithBalance()
+    {
+        var product = Product.Create("ABC", "Product", 1, DateTimeOffset.UtcNow);
+        Assert.Throws<InvalidOperationException>(() =>
+            product.UpdateMetadata("ABC", "Product", false, product.Version, DateTimeOffset.UtcNow, "Ana"));
+    }
 }

@@ -14,7 +14,9 @@ public interface IInventoryClient
         string description,
         int balance,
         bool tracksStock,
+        string actorName,
         CancellationToken cancellationToken);
+    Task<InventoryProduct> UpdateProductAsync(Guid id, string code, string description, bool tracksStock, Guid version, string actorName, CancellationToken cancellationToken);
     Task<StockDebitOutcome> DebitAsync(Guid attemptId, Guid invoiceId, IReadOnlyList<StockDebitItem> items, CancellationToken cancellationToken);
     Task<StockDebitOutcome> GetDebitAsync(Guid attemptId, CancellationToken cancellationToken);
 }
@@ -28,7 +30,12 @@ public sealed record InventoryProduct(
     string Code,
     string Description,
     int Balance,
-    bool TracksStock = true);
+    bool TracksStock = true,
+    DateTimeOffset? CreatedAt = null,
+    string? CreatedBy = null,
+    DateTimeOffset? UpdatedAt = null,
+    string? UpdatedBy = null,
+    Guid? Version = null);
 public sealed record StockDebitItem(Guid ProductId, int Quantity);
 /// <summary>Item que entrou na nota sem movimentar estoque (INV-04).</summary>
 public sealed record IgnoredStockItem(Guid ProductId, string Code, int Quantity, string Reason, string Message);
@@ -85,13 +92,13 @@ public sealed class InventoryClient(HttpClient httpClient, ILogger<InventoryClie
         string description,
         int balance,
         bool tracksStock,
+        string actorName,
         CancellationToken cancellationToken)
     {
-        using var response = await SendAsync(() => httpClient.PostAsJsonAsync(
-            "/api/products",
-            new { code, description, balance, tracksStock },
-            JsonOptions,
-            cancellationToken));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/internal/products")
+        { Content = JsonContent.Create(new { code, description, balance, tracksStock }, options: JsonOptions) };
+        request.Headers.Add("X-Notaflow-Actor", actorName);
+        using var response = await SendAsync(() => httpClient.SendAsync(request, cancellationToken));
 
         if (response.StatusCode == HttpStatusCode.Conflict)
             throw new ConflictException("PRODUCT_CODE_TAKEN", $"Já existe um produto com o código {code}.");
@@ -101,6 +108,21 @@ public sealed class InventoryClient(HttpClient httpClient, ILogger<InventoryClie
 
         return await response.Content.ReadFromJsonAsync<InventoryProduct>(JsonOptions, cancellationToken)
             ?? throw Unavailable();
+    }
+
+    public async Task<InventoryProduct> UpdateProductAsync(Guid id, string code, string description, bool tracksStock, Guid version, string actorName, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/internal/products/{id}")
+        { Content = JsonContent.Create(new { code, description, tracksStock }, options: JsonOptions) };
+        request.Headers.TryAddWithoutValidation("If-Match", $"\"{version}\"");
+        request.Headers.Add("X-Notaflow-Actor", actorName);
+        using var response = await SendAsync(() => httpClient.SendAsync(request, cancellationToken));
+        if (response.StatusCode == HttpStatusCode.Conflict)
+            throw new ConflictException("PRODUCT_UPDATE_CONFLICT", "O produto foi alterado ou não pode ser atualizado neste estado.");
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+            throw new DomainValidationException("O Inventory recusou os dados do produto.");
+        if (!response.IsSuccessStatusCode) throw Unavailable();
+        return await response.Content.ReadFromJsonAsync<InventoryProduct>(JsonOptions, cancellationToken) ?? throw Unavailable();
     }
 
     public async Task<StockDebitOutcome> DebitAsync(

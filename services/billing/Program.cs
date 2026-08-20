@@ -80,6 +80,7 @@ else
 
 builder.Services.AddSingleton<IInventoryToolSessionFactory, McpInventoryToolSessionFactory>();
 builder.Services.AddScoped<InvoiceService>();
+builder.Services.AddScoped<CatalogProductService>();
 builder.Services.AddScoped<ClosureCoordinator>();
 builder.Services.AddScoped<AiDraftService>();
 builder.Services.AddScoped<AssistantService>();
@@ -142,6 +143,7 @@ app.MapHealthChecks("/health/ready");
 app.UseMiddleware<UserContextMiddleware>();
 app.MapAuthEndpoints();
 app.MapInvoiceEndpoints();
+app.MapCatalogProductEndpoints();
 app.MapImportEndpoints();
 app.MapProposedActionEndpoints();
 app.MapAiEndpoints();
