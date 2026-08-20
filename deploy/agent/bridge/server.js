@@ -62,7 +62,10 @@ function executar(prompt) {
             '--allowedTools', 'NenhumaFerramentaPermitida',
             '--disallowedTools', ...FERRAMENTAS_NEGADAS,
         ];
-        execFile(CLAUDE, args, {
+        // O CLI espera dados em stdin por 3s antes de prosseguir e imprime um
+        // aviso em stderr. Sem fechar o stdin, cada chamada custa 3s a mais e o
+        // aviso polui a saida.
+        const filho = execFile(CLAUDE, args, {
             timeout: TIMEOUT_MS,
             maxBuffer: 8 * 1024 * 1024,
             env: {
@@ -75,6 +78,7 @@ function executar(prompt) {
             if (erro) return reject(new Error(erro.killed ? 'timeout' : (stderr || erro.message).slice(0, 400)));
             resolve(stdout);
         });
+        filho.stdin.end();
     });
 }
 
@@ -84,10 +88,15 @@ function extrairTexto(saidaBruta) {
     // reprovar, em vez de adivinhar.
     try {
         const envelope = JSON.parse(saidaBruta);
+        if (envelope.is_error) {
+            const e = new Error(String(envelope.result || 'erro do harness').slice(0, 300));
+            e.doHarness = true;
+            throw e;
+        }
         if (typeof envelope.result === 'string') return envelope.result;
-        if (envelope.is_error) throw new Error(String(envelope.result || 'erro do harness'));
-    } catch {
-        // segue com a saida crua
+    } catch (e) {
+        if (e.doHarness) throw e;
+        // formato inesperado: devolver cru e deixar o Billing reprovar
     }
     return saidaBruta;
 }

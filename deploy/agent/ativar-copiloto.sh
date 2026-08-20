@@ -13,7 +13,8 @@ set -uo pipefail
 # Checar o VALOR, nao o tamanho do arquivo: um arquivo com
 # "CLAUDE_CODE_OAUTH_TOKEN=" e nada depois tem 25 bytes e passaria por -s.
 ATUAL=$(grep -E '^(CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY)=' /etc/notaflow-agent.env 2>/dev/null | cut -d= -f2-)
-if [ -z "${ATUAL:-}" ]; then
+# TROCAR=1 regrava mesmo havendo valor -- necessario quando o atual e invalido.
+if [ -z "${ATUAL:-}" ] || [ "${TROCAR:-0}" = "1" ]; then
     printf 'Cole o token do Claude Code (claude setup-token) e Enter: '
     read -rs TOKEN
     echo
@@ -28,6 +29,27 @@ if [ -z "${ATUAL:-}" ]; then
         sk-ant-*) ;;
         *) echo "[!] isso nao parece um token (esperado comecar com sk-ant-)"; exit 1 ;;
     esac
+
+    # A digitacao e oculta, entao nao ha retorno visual e e facil colar duas ou
+    # dez vezes sem perceber. Um token colado N vezes vira um valor unico que a
+    # API recusa com 401 -- erro que nao aponta para a causa.
+    OCORRENCIAS=$(printf '%s' "$TOKEN" | grep -o 'sk-ant-' | wc -l)
+    if [ "$OCORRENCIAS" -ne 1 ]; then
+        echo "[!] o valor contem $OCORRENCIAS tokens grudados. Cole uma vez so."
+        echo "    Dica: a digitacao e oculta de proposito; nao aparece nada na tela."
+        exit 1
+    fi
+
+    TAMANHO=${#TOKEN}
+    if [ "$TAMANHO" -lt 80 ] || [ "$TAMANHO" -gt 300 ]; then
+        echo "[!] tamanho inesperado: $TAMANHO caracteres (um token tem ~108)."
+        exit 1
+    fi
+
+    if printf '%s' "$TOKEN" | grep -qE '[[:space:]]'; then
+        echo "[!] o valor tem espaco ou quebra de linha no meio."
+        exit 1
+    fi
     umask 077
     printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "$TOKEN" > /etc/notaflow-agent.env
     chown root:nfagent /etc/notaflow-agent.env
@@ -44,6 +66,20 @@ chmod 640 /etc/notaflow-agent.env
 if ! runuser -u nfagent -- test -r /etc/notaflow-agent.env; then
     echo "[!] nfagent nao consegue ler a credencial"; exit 1
 fi
+# Provar que a credencial autentica ANTES de subir servico e ligar provedor.
+# Sem isto, um 401 so aparece la na frente, disfarcado de erro da ponte.
+echo "[*] conferindo a credencial contra a API..."
+set -a; . /etc/notaflow-agent.env; set +a
+TESTE=$(timeout 120 runuser -u nfagent -- env     CLAUDE_CODE_OAUTH_TOKEN="${CLAUDE_CODE_OAUTH_TOKEN:-}" HOME=/var/lib/nfagent     /var/lib/nfagent/.local/bin/claude -p "responda apenas: PONG"     --output-format json --model haiku --no-session-persistence < /dev/null 2>&1)
+if printf '%s' "$TESTE" | grep -q '"is_error":true'; then
+    echo "[!] a credencial nao autentica:"
+    printf '%s' "$TESTE" | python3 -c 'import sys,json;print("   ",json.load(sys.stdin).get("result"))' 2>/dev/null         || printf '%s
+' "$TESTE" | tail -c 300
+    echo "    Gere um token novo: claude setup-token (na VPS, como root) e rode este script de novo."
+    exit 1
+fi
+echo "[+] credencial valida"
+
 echo "[*] subindo a ponte..."
 systemctl restart notaflow-bridge.service
 sleep 3
