@@ -118,6 +118,13 @@ services:
       OpenAI__Model: ${OPENAI_MODEL:-gpt-5.6-luna}
       Cors__Origins__0: ${PUBLIC_ORIGIN}
       AllowedHosts: localhost;127.0.0.1;billing;billing-api;${PUBLIC_HOST}
+      # Copiloto: vazio (ou "openai") mantem o provedor original.
+      AI__Provider: ${AI_PROVIDER:-}
+      # host.docker.internal permite alcancar a ponte, que escuta so no loopback
+      # do host e nunca e publicada na rede do Docker.
+      ClaudeBridge__BaseUrl: ${CLAUDE_BRIDGE_URL:-http://host.docker.internal:5099/}
+      ClaudeBridge__Secret: ${CLAUDE_BRIDGE_SECRET:-}
+      ClaudeBridge__Model: ${CLAUDE_BRIDGE_MODEL:-haiku}
       DOTNET_gcServer: "0"
     depends_on:
       billing-db:
@@ -132,6 +139,8 @@ services:
       timeout: 5s
       retries: 12
       start_period: 40s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks: [app, billing-data]
     deploy:
       resources:

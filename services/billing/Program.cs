@@ -25,6 +25,7 @@ builder.Services.AddOpenApi();
 builder.Services.Configure<InventoryOptions>(builder.Configuration.GetSection(InventoryOptions.Section));
 builder.Services.Configure<OpenAiOptions>(builder.Configuration.GetSection(OpenAiOptions.Section));
 builder.Services.Configure<InternalAuthOptions>(builder.Configuration.GetSection(InternalAuthOptions.Section));
+builder.Services.Configure<ClaudeBridgeOptions>(builder.Configuration.GetSection(ClaudeBridgeOptions.Section));
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 6 * 1024 * 1024;
@@ -46,12 +47,28 @@ builder.Services.AddHttpClient<IInventoryClient, InventoryClient>((sp, client) =
     client.BaseAddress = new Uri(options.BaseUrl);
     client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
 }).AddHttpMessageHandler<InternalAuthHandler>();
-builder.Services.AddHttpClient<IInvoiceDraftAiClient, OpenAiResponsesClient>((sp, client) =>
+// AI:Provider escolhe quem responde. Vazio ou "openai" mantem o comportamento
+// anterior; "claude-bridge" usa o Claude Code da VPS atras da ponte local.
+// Em qualquer caso a sessao MCP e a validacao de proveniencia ficam no Billing.
+if (string.Equals(builder.Configuration["AI:Provider"], "claude-bridge", StringComparison.OrdinalIgnoreCase))
 {
-    var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
-    client.BaseAddress = new Uri(options.BaseUrl);
-    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-});
+    builder.Services.AddHttpClient<IInvoiceDraftAiClient, ClaudeBridgeClient>((sp, client) =>
+    {
+        var options = sp.GetRequiredService<IOptions<ClaudeBridgeOptions>>().Value;
+        if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+            client.BaseAddress = new Uri(options.BaseUrl);
+        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+    });
+}
+else
+{
+    builder.Services.AddHttpClient<IInvoiceDraftAiClient, OpenAiResponsesClient>((sp, client) =>
+    {
+        var options = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
+        client.BaseAddress = new Uri(options.BaseUrl);
+        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+    });
+}
 
 builder.Services.AddSingleton<IInventoryToolSessionFactory, McpInventoryToolSessionFactory>();
 builder.Services.AddScoped<InvoiceService>();

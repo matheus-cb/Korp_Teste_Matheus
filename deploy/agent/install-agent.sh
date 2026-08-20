@@ -57,7 +57,9 @@ Requires=notaflow-collect.service
 Type=oneshot
 User=nfagent
 Group=nfagent
-EnvironmentFile=/etc/notaflow-agent.env
+# O '-' torna o arquivo opcional: sem credencial o agente reporta o motivo
+# em vez de o systemd falhar com 'Failed to load environment files'.
+EnvironmentFile=-/etc/notaflow-agent.env
 WorkingDirectory=/var/lib/nfagent
 ExecStart=/var/lib/nfagent/nf-agent.sh
 TimeoutStartSec=900

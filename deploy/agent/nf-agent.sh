@@ -3,6 +3,13 @@
 set -uo pipefail
 cd /var/lib/nfagent
 
+if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}${ANTHROPIC_API_KEY:-}" ]; then
+    echo "STATUS: INDISPONIVEL"
+    echo "RESUMO: sem credencial em /etc/notaflow-agent.env; o agente nao rodou."
+    echo "ACAO: nenhuma"
+    exit 0
+fi
+
 RELATORIOS=/var/lib/nfagent/relatorios
 mkdir -p "$RELATORIOS"
 stamp=$(date +%Y%m%d-%H%M)

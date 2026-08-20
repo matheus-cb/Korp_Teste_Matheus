@@ -22,6 +22,19 @@ public sealed class OpenAiOptions
     public decimal EstimatedUsdPerMillionOutputTokens { get; init; }
 }
 
+/// <summary>
+/// Ponte de inferencia local (Claude Code na VPS). Ver ClaudeBridgeClient:
+/// a ponte so faz inferencia; MCP e validacao continuam no Billing.
+/// </summary>
+public sealed class ClaudeBridgeOptions
+{
+    public const string Section = "ClaudeBridge";
+    public string BaseUrl { get; init; } = string.Empty;
+    public string Secret { get; init; } = string.Empty;
+    public string Model { get; init; } = "haiku";
+    public int TimeoutSeconds { get; init; } = 120;
+}
+
 public sealed class InternalAuthOptions
 {
     public const string Section = "InternalAuth";

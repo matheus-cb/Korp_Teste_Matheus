@@ -11,6 +11,20 @@ namespace Billing.Api.Application;
 
 public interface IInvoiceDraftAiClient
 {
+    /// <summary>
+    /// Se o provedor tem credencial para operar. Quem decide e o provedor:
+    /// antes, o serviço olhava direto para a chave da OpenAI, o que deixava
+    /// qualquer outro provedor permanentemente desligado (INV-23).
+    /// </summary>
+    bool IsConfigured { get; }
+
+    /// <summary>Modelo efetivo, registrado em AiDraftRun para auditoria.</summary>
+    string ModelName { get; }
+
+    /// <summary>Se o provedor aceita imagem. Ver seção 6.1 do plano da VPS:
+    /// o atalho "Ler de uma foto" não pode falhar em silêncio.</summary>
+    bool SupportsImage { get; }
+
     Task<AiDraftModelResult> GenerateAsync(AiDraftInput input, CancellationToken cancellationToken);
 }
 
@@ -30,13 +44,18 @@ public sealed class AiDraftService(
             throw new DomainValidationException("Informe um texto ou uma imagem do pedido.");
 
         var configured = options.Value;
-        if (string.IsNullOrWhiteSpace(configured.ApiKey))
+        if (!aiClient.IsConfigured)
             throw new DependencyUnavailableException(
                 "AI_DISABLED",
-                "O copiloto está desabilitado porque a chave da OpenAI não foi configurada.");
+                "O copiloto está desabilitado porque nenhum provedor de IA foi configurado.");
+
+        if (image is not null && !aiClient.SupportsImage)
+            throw new DependencyUnavailableException(
+                "AI_IMAGE_UNSUPPORTED",
+                "O provedor de IA em uso não aceita imagem. Descreva o pedido em texto.");
 
         var sanitized = image is null ? null : await SanitizeImageAsync(image, cancellationToken);
-        var run = AiDraftRun.Start(configured.Model, configured.PromptVersion, clock.GetUtcNow());
+        var run = AiDraftRun.Start(aiClient.ModelName, configured.PromptVersion, clock.GetUtcNow());
         db.AiDraftRuns.Add(run);
         await db.SaveChangesAsync(cancellationToken);
         var stopwatch = Stopwatch.StartNew();

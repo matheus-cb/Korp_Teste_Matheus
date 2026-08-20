@@ -58,13 +58,15 @@ public sealed class AiDraftServiceTests
     }
 
     [Fact]
-    public async Task Reports_disabled_without_creating_a_run_when_api_key_is_missing()
+    public async Task Reports_disabled_without_creating_a_run_when_no_provider_is_configured()
     {
         var factory = new InMemoryBillingDbFactory(Guid.NewGuid().ToString());
         await using var db = factory.CreateDbContext();
         var service = new AiDraftService(
             db,
-            new DeterministicFakeAiClient(default!),
+            // Quem responde por estar configurado agora e o provedor, e nao a
+            // chave da OpenAI: sem isso qualquer provedor novo nasceria desligado.
+            new DeterministicFakeAiClient(default!, isConfigured: false),
             Microsoft.Extensions.Options.Options.Create(new OpenAiOptions()),
             TimeProvider.System,
             TestLoggers.For<AiDraftService>());
