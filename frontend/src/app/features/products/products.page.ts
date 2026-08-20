@@ -58,8 +58,9 @@ function balanceState(product: Pick<Product, 'balance' | 'tracksStock'>): Balanc
       </button>
     </app-page-header>
 
-    <div class="toolbar">
-      <label class="search">
+    <section class="page-card">
+      <div class="toolbar">
+        <label class="search">
         <mat-icon svgIcon="search" aria-hidden="true" />
         <input
           #searchInput
@@ -68,33 +69,39 @@ function balanceState(product: Pick<Product, 'balance' | 'tracksStock'>): Balanc
           maxlength="100"
           placeholder="Código ou descrição"
           aria-label="Buscar produto"
-          (input)="search(searchInput.value)"
-        />
-      </label>
-      <span class="count">
-        {{ products.length }} {{ products.length === 1 ? 'produto' : 'produtos' }}
-      </span>
-    </div>
-
-    @if (listError) {
-      <div class="state-padding">
-        <app-inline-alert
-          tone="error"
-          [title]="listError.title"
-          [message]="listError.message"
-          [traceId]="listError.traceId"
-          [retryable]="true"
-          (retry)="reload()"
-        />
+            (input)="search(searchInput.value)"
+          />
+        </label>
       </div>
-    } @else {
-      <app-data-grid
-        [rowData]="products"
-        [columnDefs]="columns"
-        [pinnedBottomRowData]="totalRow"
-        [emptyMessage]="emptyMessage()"
-      />
-    }
+
+      @if (listError) {
+        <div class="state-padding">
+          <app-inline-alert
+            tone="error"
+            [title]="listError.title"
+            [message]="listError.message"
+            [traceId]="listError.traceId"
+            [retryable]="true"
+            (retry)="reload()"
+          />
+        </div>
+      } @else {
+        <div class="grid-area">
+          <app-data-grid
+            [rowData]="products"
+            [columnDefs]="columns"
+            [pinnedBottomRowData]="totalRow"
+            [emptyMessage]="emptyMessage()"
+          />
+        </div>
+      }
+
+      <!-- A contagem vive no rodape, nao na barra de filtros: ela descreve o
+           resultado, e ali competia por espaco com a busca. -->
+      <footer class="card-foot">
+        <span>{{ products.length }} {{ products.length === 1 ? 'produto' : 'produtos' }}</span>
+      </footer>
+    </section>
   `,
   styleUrl: './products.page.scss',
   changeDetection: ChangeDetectionStrategy.Default,

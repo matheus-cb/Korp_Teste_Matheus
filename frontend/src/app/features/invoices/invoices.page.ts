@@ -61,8 +61,9 @@ const CLASSES: Record<string, string> = {
       </button>
     </app-page-header>
 
-    <div class="toolbar">
-      <label class="search">
+    <section class="page-card">
+      <div class="toolbar">
+        <label class="search">
         <mat-icon svgIcon="search" aria-hidden="true" />
         <input
           #searchInput
@@ -97,61 +98,69 @@ const CLASSES: Record<string, string> = {
         <input type="date" [value]="to" aria-label="Até" (change)="setTo($event)" />
       </label>
 
-      <span class="count">
-        {{ filtered.length }} {{ filtered.length === 1 ? 'nota' : 'notas' }}
-      </span>
-    </div>
-
-    @if (error) {
-      <div class="state-padding">
-        <app-inline-alert
-          tone="error"
-          [title]="error.title"
-          [message]="error.message"
-          [traceId]="error.traceId"
-          [retryable]="true"
-          (retry)="load()"
-        />
       </div>
-    } @else {
-      <app-data-grid
-        [rowData]="pageRows"
-        [columnDefs]="columns"
-        [pinnedBottomRowData]="totalRow"
-        emptyMessage="Nenhuma nota encontrada"
-        (rowClicked)="openDetail($event.id)"
-      />
 
-      <nav class="pager" aria-label="Paginação">
-        <span>{{ rangeLabel() }}</span>
-        <button
-          type="button"
-          class="nf-btn nf-btn--icon"
-          aria-label="Página anterior"
-          [disabled]="page === 1"
-          (click)="goTo(page - 1)"
-        >
-          <mat-icon svgIcon="chevron-left" />
-        </button>
-        <button
-          type="button"
-          class="nf-btn nf-btn--icon"
-          aria-label="Próxima página"
-          [disabled]="page >= totalPages()"
-          (click)="goTo(page + 1)"
-        >
-          <mat-icon svgIcon="chevron-right" />
-        </button>
-        <label class="page-size">
-          Por página
-          <select [value]="pageSize" (change)="setPageSize($event)">
-            @for (size of pageSizes; track size) {
-              <option [value]="size">{{ size }}</option>
-            }
-          </select>
-        </label>
-      </nav>
-    }
+      @if (error) {
+        <div class="state-padding">
+          <app-inline-alert
+            tone="error"
+            [title]="error.title"
+            [message]="error.message"
+            [traceId]="error.traceId"
+            [retryable]="true"
+            (retry)="load()"
+          />
+        </div>
+      } @else {
+        <div class="grid-area">
+          <app-data-grid
+            [rowData]="pageRows"
+            [columnDefs]="columns"
+            [pinnedBottomRowData]="totalRow"
+            emptyMessage="Nenhuma nota encontrada"
+            (rowClicked)="openDetail($event.id)"
+          />
+        </div>
+      }
+
+      <!-- Contagem a esquerda, paginacao a direita: o rodape do card responde
+           "quantos" e "onde estou" sem competir com os filtros la em cima. -->
+      <footer class="card-foot">
+        <span>{{ filtered.length }} {{ filtered.length === 1 ? 'nota' : 'notas' }}</span>
+
+        @if (!error) {
+          <nav class="pager" aria-label="Paginação">
+            <span>{{ rangeLabel() }}</span>
+            <button
+              type="button"
+              class="nf-btn nf-btn--icon"
+              aria-label="Página anterior"
+              [disabled]="page === 1"
+              (click)="goTo(page - 1)"
+            >
+              <mat-icon svgIcon="chevron-left" />
+            </button>
+            <button
+              type="button"
+              class="nf-btn nf-btn--icon"
+              aria-label="Próxima página"
+              [disabled]="page >= totalPages()"
+              (click)="goTo(page + 1)"
+            >
+              <mat-icon svgIcon="chevron-right" />
+            </button>
+            <label class="page-size">
+              Por página
+              <select [value]="pageSize" (change)="setPageSize($event)">
+                @for (size of pageSizes; track size) {
+                  <option [value]="size">{{ size }}</option>
+                }
+              </select>
+            </label>
+          </nav>
+        }
+      </footer>
+    </section>
   `,
   styleUrl: './invoices.page.scss',
   changeDetection: ChangeDetectionStrategy.Default,

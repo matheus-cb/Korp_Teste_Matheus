@@ -32,33 +32,38 @@ import { DataRefreshService } from '../../core/services/data-refresh.service';
       </button>
     </app-page-header>
 
-    <div class="toolbar">
-      <span class="hint">Cada linha é uma baixa concluída, com o saldo antes e depois.</span>
-      <span class="count">
-        {{ movements.length }} {{ movements.length === 1 ? 'movimento' : 'movimentos' }}
-      </span>
-    </div>
-
-    @if (error) {
-      <div class="state-padding">
-        <app-inline-alert
-          tone="error"
-          [title]="error.title"
-          [message]="error.message"
-          [traceId]="error.traceId"
-          [retryable]="true"
-          (retry)="load()"
-        />
+    <section class="page-card">
+      <div class="toolbar">
+        <span class="hint">Cada linha é uma baixa concluída, com o saldo antes e depois.</span>
       </div>
-    } @else {
-      <app-data-grid
-        [rowData]="movements"
-        [columnDefs]="columns"
-        [pinnedBottomRowData]="totalRow"
-        emptyMessage="Nenhuma movimentação registrada"
-        (rowClicked)="openInvoice($event)"
-      />
-    }
+
+      @if (error) {
+        <div class="state-padding">
+          <app-inline-alert
+            tone="error"
+            [title]="error.title"
+            [message]="error.message"
+            [traceId]="error.traceId"
+            [retryable]="true"
+            (retry)="load()"
+          />
+        </div>
+      } @else {
+        <div class="grid-area">
+          <app-data-grid
+            [rowData]="movements"
+            [columnDefs]="columns"
+            [pinnedBottomRowData]="totalRow"
+            emptyMessage="Nenhuma movimentação registrada"
+            (rowClicked)="openInvoice($event)"
+          />
+        </div>
+      }
+
+      <footer class="card-foot">
+        <span>{{ movements.length }} {{ movements.length === 1 ? 'movimento' : 'movimentos' }}</span>
+      </footer>
+    </section>
   `,
   styles: `
     :host {

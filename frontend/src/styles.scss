@@ -571,3 +571,70 @@ a {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* ======================================================================
+   PADRAO DE PAGINA COM GRADE
+   ----------------------------------------------------------------------
+   Um container unico com sombra envolve a secao inteira: barra de acoes,
+   cabecalho da grade, linhas e rodape. Antes a tabela sangrava de borda a
+   borda e o rodape de totais ficava solto na base, com um vao no meio que
+   parecia defeito.
+
+   A altura e fixa de proposito: o card ocupa o espaco disponivel e a area
+   vazia fica DENTRO dele, com rodape e paginacao ancorados embaixo. Assim a
+   pagina nao salta de altura ao paginar ou filtrar.
+   ====================================================================== */
+.page-card {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  /* `hidden` e o que faz o raio recortar o cabecalho escuro da grade. */
+  overflow: hidden;
+  /* Respiro contra as bordas da area de conteudo. */
+  margin: var(--sp-3) var(--sp-4) var(--sp-4);
+  border: 1px solid var(--n-200);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Barra de filtros e contagem, no topo do card. */
+.page-card > .toolbar {
+  flex: none;
+}
+
+/* A grade e o unico elemento que cresce; ela rola por dentro. */
+.page-card > .grid-area {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+/* Rodape ancorado na base do card: totais, contagem e paginacao. */
+.page-card > .card-foot {
+  display: flex;
+  min-height: 40px;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-4);
+  border-top: 1px solid var(--n-200);
+  background: var(--n-25);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  gap: var(--sp-3);
+}
+
+/* Em telas estreitas o respiro lateral encolhe: 16px de cada lado custa
+   caro num viewport de 360px. */
+@media (width <= 767px) {
+  .page-card {
+    margin: var(--sp-2);
+  }
+
+  .page-card > .card-foot {
+    padding: 0 var(--sp-3);
+  }
+}

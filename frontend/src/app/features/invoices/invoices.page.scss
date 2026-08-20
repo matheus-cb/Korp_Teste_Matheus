@@ -97,31 +97,20 @@
   font-size: var(--fs-sm);
 }
 
-.count {
-  margin-left: auto;
-  color: var(--n-500);
-  font-size: var(--fs-sm);
-}
 
 .state-padding {
   padding: var(--sp-4);
 }
 
-/* Paginação: fora da área de rolagem do grid, nunca coberta pelo assistente. */
+/* Paginação: vive no rodapé do card, que já dá borda, fundo, padding e cor.
+   Aqui fica só o arranjo interno dos controles. */
 .pager {
   display: flex;
   align-items: center;
-  padding: var(--sp-2) var(--sp-4);
-  border-top: 1px solid var(--n-200);
-  background: var(--n-0);
-  color: var(--n-500);
-  font-size: var(--fs-sm);
-  flex: none;
   gap: var(--sp-2);
 }
 
 .pager > span:first-child {
-  margin-right: auto;
   font-variant-numeric: tabular-nums;
 }
 
