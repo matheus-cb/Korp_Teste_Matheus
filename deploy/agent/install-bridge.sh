@@ -9,10 +9,18 @@ BRIDGE_DIR=/var/lib/nfagent/bridge
 mkdir -p "$BRIDGE_DIR"
 install -m 640 -o nfagent -g nfagent server.js "$BRIDGE_DIR/server.js"
 
-if ! command -v node >/dev/null 2>&1; then
-    echo "[*] instalando Node.js..."
+# O modulo padrao do AlmaLinux 9 traz Node 16, muito abaixo do minimo do
+# projeto (>= 22.22.3, ver AGENTS.md). Habilitar o fluxo 22 explicitamente.
+versao_node() { node --version 2>/dev/null | sed 's/^v//' | cut -d. -f1; }
+if [ "$(versao_node || echo 0)" -lt 22 ] 2>/dev/null; then
+    echo "[*] instalando Node.js 22..."
     dnf module reset -y nodejs >/dev/null 2>&1 || true
-    dnf install -y -q nodejs
+    dnf module enable -y nodejs:22 >/dev/null 2>&1 || true
+    dnf install -y -q nodejs --allowerasing
+fi
+if [ "$(versao_node || echo 0)" -lt 22 ] 2>/dev/null; then
+    echo "[!] Node ainda abaixo de 22: $(node --version 2>/dev/null || echo ausente)"
+    exit 1
 fi
 echo "[+] node $(node --version)"
 
@@ -83,6 +91,4 @@ if [ -s /etc/notaflow-agent.env ]; then
 else
     echo "[!] /etc/notaflow-agent.env vazio: a ponte so sobe com a credencial do Claude Code"
 fi
-echo
-echo "Segredo para o Billing (BRIDGE_SECRET), use no .env como CLAUDE_BRIDGE_SECRET:"
-grep '^BRIDGE_SECRET=' /etc/notaflow-bridge.env | cut -d= -f2-
+echo "[=] segredo ja esta em /opt/notaflow/.env como CLAUDE_BRIDGE_SECRET" 
