@@ -100,6 +100,19 @@ jobs:
         run: |
           scp -i ~/.ssh/id_deploy -P "$SSH_PORT"             deploy/docker-compose.prod.yml deploy/Caddyfile             "$SSH_USER@$SSH_HOST:/opt/notaflow/"
 
+          # A ponte roda fora do compose, como serviço do host: sem isto ela fica
+          # numa versão diferente da que o Billing espera, e a diferença só
+          # aparece em runtime.
+          scp -i ~/.ssh/id_deploy -P "$SSH_PORT"             deploy/agent/bridge/server.js             "$SSH_USER@$SSH_HOST:/tmp/bridge-server.js"
+          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" "$SSH_USER@$SSH_HOST"             'if [ -d /var/lib/nfagent/bridge ]; then
+               install -m 640 -o nfagent -g nfagent /tmp/bridge-server.js /var/lib/nfagent/bridge/server.js
+               systemctl restart notaflow-bridge || true
+               echo "ponte atualizada: $(systemctl is-active notaflow-bridge)"
+             else
+               echo "ponte nao instalada nesta VPS; nada a fazer"
+             fi
+             rm -f /tmp/bridge-server.js'
+
       - name: Publicar
         env:
           SSH_HOST: ${{ secrets.VPS_HOST }}

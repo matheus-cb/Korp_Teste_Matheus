@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Billing.Api.Contracts;
 using Billing.Api.Domain;
 using Billing.Api.Infrastructure;
@@ -108,7 +109,7 @@ public sealed class AssistantService(
             }
 
             run.Complete(
-                string.Join(',', reply.ToolNames),
+                JsonSerializer.Serialize(reply.ToolNames.Distinct()),
                 reply.InputTokens,
                 reply.OutputTokens,
                 0m,
@@ -132,7 +133,7 @@ public sealed class AssistantService(
         {
             // INV-22: nem a mensagem do usuário nem a resposta do modelo entram no log.
             logger.LogWarning("A execução {RunId} do assistente falhou.", run.Id);
-            run.Fail("ASSISTANT_FAILED", string.Empty, stopwatch.ElapsedMilliseconds, clock.GetUtcNow());
+            run.Fail("ASSISTANT_FAILED", "[]", stopwatch.ElapsedMilliseconds, clock.GetUtcNow());
             await db.SaveChangesAsync(cancellationToken);
             throw;
         }
