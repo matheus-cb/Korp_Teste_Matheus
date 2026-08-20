@@ -78,6 +78,9 @@
   --agent-w: 326px;
 
   --shadow-sm: 0 1px 2px rgb(20 26 32 / 6%), 0 1px 3px rgb(20 26 32 / 4%);
+  /* Card de pagina: precisa de mais presenca que --shadow-sm sem virar
+     drop-shadow de 2010. Camada curta para o contato, longa para a difusao. */
+  --shadow-card: 0 1px 2px rgb(20 26 32 / 5%), 0 6px 16px -4px rgb(20 26 32 / 10%);
   --shadow-md: 0 4px 14px rgb(20 26 32 / 10%);
   --shadow-pop: -10px 0 28px rgb(20 26 32 / 20%);
 
@@ -593,15 +596,20 @@ a {
   overflow: hidden;
   /* Respiro contra as bordas da area de conteudo. */
   margin: var(--sp-3) var(--sp-4) var(--sp-4);
-  border: 1px solid var(--n-200);
-  border-radius: var(--r-md);
+  border: 1px solid var(--n-100);
+  /* 6px: o raio de 4px do resto do sistema fica apertado num container deste
+     tamanho e o recorte do cabecalho quase nao aparece. */
+  border-radius: 6px;
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
 }
 
-/* Barra de filtros e contagem, no topo do card. */
+/* Barra de filtros, no topo do card. Fundo branco de proposito: o cabecalho da
+   grade logo abaixo e cinza, e duas faixas cinza seguidas viram uma mancha sem
+   hierarquia. */
 .page-card > .toolbar {
   flex: none;
+  background: var(--surface);
 }
 
 /* A grade e o unico elemento que cresce; ela rola por dentro. */
@@ -620,7 +628,7 @@ a {
   align-items: center;
   justify-content: space-between;
   padding: 0 var(--sp-4);
-  border-top: 1px solid var(--n-200);
+  border-top: 1px solid var(--n-100);
   background: var(--n-25);
   color: var(--muted);
   font-size: var(--fs-sm);

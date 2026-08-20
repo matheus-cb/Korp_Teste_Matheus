@@ -8,14 +8,23 @@ import type { ColDef, GridReadyEvent, RowClickedEvent } from 'ag-grid-community'
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 /**
- * Tema Balham nativo com três parâmetros ajustados para casar com o restante
- * da aplicação: cabeçalho escuro e densidade confortável. Não reescrevemos o
- * tema — apenas usamos a API dele, então voltar ao padrão é apagar o
- * `withParams`.
+ * Tema Balham nativo, ajustado pela API do proprio tema — nao reescrevemos o
+ * tema, e voltar ao padrao e apagar o `withParams`.
+ *
+ * O cabeçalho era `#243342`, quase preto. Num card claro ele pesava demais:
+ * virava o elemento mais forte da tela e competia com os badges de situação,
+ * que são justamente o que precisa saltar. Agora é cinza claro com texto
+ * escuro, e a separação vem da borda inferior — o mesmo peso visual do resto
+ * da interface.
+ *
+ * Os valores são literais porque a API do tema não resolve `var()`; são os
+ * mesmos de `--n-100`, `--n-700`, `--n-200` e `--brand-600` em `styles.scss`.
  */
 const THEME = themeBalham.withParams({
-  headerBackgroundColor: '#243342',
-  headerTextColor: '#eef2f5',
+  headerBackgroundColor: '#eceff2',
+  headerTextColor: '#343d46',
+  headerFontWeight: 660,
+  borderColor: '#dde3e8',
   accentColor: '#0f5a50',
 });
 
@@ -69,9 +78,35 @@ const LOCALE_PT_BR: Record<string, string> = {
       height: 100%;
     }
 
+    /* Sem o fundo escuro, e a borda que separa cabecalho de dados. */
+    :host ::ng-deep .ag-header {
+      border-bottom: 1px solid var(--n-300);
+    }
+
+    /*
+     * Separadores de coluna no cabecalho: com fundo claro, sem eles as colunas
+     * se misturam.
+     *
+     * NAO declare "position: relative" no .ag-header-cell. O grid posiciona
+     * cada celula com "position: absolute; left: X"; tornando-a relativa, o
+     * "left" passa a somar sobre a posicao natural e os cabecalhos acumulam
+     * deslocamento -- as celulas ficam no lugar e o cabecalho sai da tela.
+     * A celula ja e contexto de posicionamento, e o ::after ancora nela.
+     */
+    :host ::ng-deep .ag-header-cell:not(:last-child)::after {
+      position: absolute;
+      top: 25%;
+      right: 0;
+      width: 1px;
+      height: 50%;
+      background: var(--n-300);
+      content: '';
+    }
+
     /* Linha fixada do rodapé: é o total, então precisa ler como total. */
     :host ::ng-deep .ag-floating-bottom {
       border-top: 1px solid var(--n-300);
+      background: var(--n-25);
       font-weight: 660;
     }
 
