@@ -110,6 +110,10 @@ public sealed class ClaudeBridgeClient(
           "teclado sem fio rosa" vira TECLADO-SEM-FIO-ROSA. Se o código que você
           gerou já existir, acrescente um sufixo que o distinga.
 
+          Para VÁRIOS produtos de uma vez, chame list_products UMA vez e compare
+          com a lista inteira, em vez de uma busca por item: cada chamada custa
+          segundos, e quatro buscas seguidas estouram o tempo da requisição.
+
           Busque antes com search_products, mas para INFORMAR, não para barrar.
           Se achar algo parecido, diga o que achou e proponha assim mesmo o
           produto novo, deixando a pessoa descartar se for o mesmo. Só deixe de
