@@ -83,6 +83,10 @@ services:
       ConnectionStrings__InventoryDatabase: Host=inventory-db;Port=5432;Database=inventory;Username=inventory;Password=${POSTGRES_INVENTORY_PASSWORD}
       InternalAuth__Token: ${INTERNAL_SERVICE_TOKEN:?obrigatorio}
       Cors__AllowedOrigins__0: ${PUBLIC_ORIGIN:?defina PUBLIC_ORIGIN no .env}
+      # O nginx repassa o Host original, entao o hostname publico precisa entrar
+      # na allowlist. Ela existe de proposito contra ataque de Host header:
+      # ampliar com o host real e correto, trocar por "*" nao seria.
+      AllowedHosts: localhost;127.0.0.1;inventory;inventory-service;${PUBLIC_HOST:?defina PUBLIC_HOST no .env}
       DOTNET_gcServer: "0"
     depends_on:
       inventory-db:
@@ -113,6 +117,7 @@ services:
       OpenAI__ApiKey: ${OPENAI_API_KEY:-}
       OpenAI__Model: ${OPENAI_MODEL:-gpt-5.6-luna}
       Cors__Origins__0: ${PUBLIC_ORIGIN}
+      AllowedHosts: localhost;127.0.0.1;billing;billing-api;${PUBLIC_HOST}
       DOTNET_gcServer: "0"
     depends_on:
       billing-db:

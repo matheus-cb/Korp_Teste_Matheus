@@ -19,6 +19,7 @@ if [ ! -f .env ]; then
     cat > .env <<EOF
 SITE_ADDRESS=$SITE_ADDRESS
 PUBLIC_ORIGIN=$PUBLIC_ORIGIN
+PUBLIC_HOST=$SITE_ADDRESS
 
 IMAGE_INVENTORY=ghcr.io/$OWNER/notaflow-inventory:latest
 IMAGE_BILLING=ghcr.io/$OWNER/notaflow-billing:latest
