@@ -127,7 +127,9 @@ public sealed class InvoiceAuditEvent
 
     public static InvoiceAuditEvent Create(Guid invoiceId, string type, string actorName, DateTimeOffset occurredAt) => new()
     {
-        Id = Guid.NewGuid(), InvoiceId = invoiceId, Type = type,
+        Id = Guid.NewGuid(),
+        InvoiceId = invoiceId,
+        Type = type,
         ActorName = string.IsNullOrWhiteSpace(actorName) ? "sistema" : actorName.Trim(),
         OccurredAt = occurredAt
     };

@@ -15,7 +15,8 @@ public sealed class AddInvoiceEditingAudit : Migration
         migrationBuilder.AddColumn<string>(name: "UpdatedBy", table: "invoices", type: "character varying(120)", maxLength: 120, nullable: false, defaultValue: "sistema");
         migrationBuilder.CreateTable(name: "invoice_audit_events", columns: table => new
         {
-            Id = table.Column<Guid>(type: "uuid", nullable: false), InvoiceId = table.Column<Guid>(type: "uuid", nullable: false),
+            Id = table.Column<Guid>(type: "uuid", nullable: false),
+            InvoiceId = table.Column<Guid>(type: "uuid", nullable: false),
             Type = table.Column<string>(type: "character varying(24)", maxLength: 24, nullable: false),
             ActorName = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
             OccurredAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
