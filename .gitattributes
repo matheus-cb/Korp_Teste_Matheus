@@ -1,0 +1,9 @@
+* text=auto
+
+# Arquivos que rodam no Linux precisam de LF mesmo quando editados no Windows.
+# Um CRLF no Caddyfile ou num .sh quebra o deploy com erro obscuro.
+*.sh            text eol=lf
+Caddyfile       text eol=lf
+Dockerfile      text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
