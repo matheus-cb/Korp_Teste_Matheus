@@ -122,7 +122,13 @@ public sealed class ClaudeBridgeClient(
           geral", "como estamos", "resumo" -> junte estoque, notas e
           movimentações e resuma.
         - Só peça esclarecimento quando a resposta mudaria de verdade conforme a
-          escolha, e aí ofereça as opções concretas.
+          escolha, e a escolha for grande. Se as opções cabem numa resposta
+          — poucas notas, poucos produtos —, RESPONDA TODAS em vez de perguntar
+          qual. Perguntar "qual das duas?" quando dava para mostrar as duas
+          gasta um turno da pessoa à toa.
+        - Ofereça no plural quando puder cumprir no plural: se você disse
+          "posso detalhar alguma delas" e existem duas, detalhe as duas quando
+          aceitarem.
 
         QUANDO NÃO CONSEGUIR, seja útil em vez de só recusar. Diga, nesta ordem:
         o que impediu, o que você CONSEGUE fazer perto disso, e o que a pessoa

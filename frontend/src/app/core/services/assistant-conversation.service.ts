@@ -1,6 +1,7 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import type { AiDraft } from '../models/ai-draft.model';
 import type { ProposedAction } from '../models/assistant.model';
+import { AuthService } from './auth.service';
 
 export interface AssistantTurn {
   role: 'user' | 'assistant';
@@ -15,7 +16,7 @@ export interface AssistantTurn {
   done?: boolean;
 }
 
-const STORAGE_KEY = 'notaflow.assistant.turns';
+const STORAGE_PREFIX = 'notaflow.assistant.turns';
 const MAX_STORED_TURNS = 40;
 
 /**
@@ -27,13 +28,34 @@ const MAX_STORED_TURNS = 40;
  * de rota.
  *
  * O espelho em `sessionStorage` estende a sobrevida ao F5, e termina quando a
- * aba fecha. O token da ação proposta é deliberadamente deixado de fora.
+ * aba fecha. A chave é **por usuário**: com chave fixa, quem entrasse depois na
+ * mesma aba via a conversa de quem saiu — inclusive saldos e números de nota
+ * que talvez não devesse ver.
  */
 @Injectable({ providedIn: 'root' })
 export class AssistantConversationService {
-  private readonly state = signal<AssistantTurn[]>(this.restore());
+  private readonly auth = inject(AuthService);
+
+  /** Dono da conversa. Anônimo tem balde próprio, e não o de ninguém. */
+  private readonly owner = computed(() => this.auth.user()?.userName ?? 'anonimo');
+
+  private readonly state = signal<AssistantTurn[]>(this.restore(this.owner()));
+
+  /** Quem estava logado quando o estado atual foi carregado. */
+  private loadedFor = this.owner();
 
   readonly turns = this.state.asReadonly();
+
+  constructor() {
+    // Trocar de usuário troca a conversa: a de quem saiu fica guardada sob a
+    // chave dele, e a de quem entrou é carregada — nunca herdada.
+    effect(() => {
+      const atual = this.owner();
+      if (atual === this.loadedFor) return;
+      this.loadedFor = atual;
+      this.state.set(this.restore(atual));
+    });
+  }
 
   append(turn: AssistantTurn): void {
     this.state.update((turns) => [...turns, turn]);
@@ -61,6 +83,10 @@ export class AssistantConversationService {
     return this.state().map((turn) => ({ role: turn.role, text: turn.text }));
   }
 
+  private key(owner: string): string {
+    return `${STORAGE_PREFIX}:${owner}`;
+  }
+
   private persist(): void {
     try {
       // Sem `action`: o token é credencial de escrita com validade, e disco do
@@ -69,15 +95,15 @@ export class AssistantConversationService {
       const serializable = this.state()
         .slice(-MAX_STORED_TURNS)
         .map(({ role, text, draft, done }) => ({ role, text, draft, done }));
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(serializable));
+      sessionStorage.setItem(this.key(this.loadedFor), JSON.stringify(serializable));
     } catch {
       // Cota estourada ou storage bloqueado: a conversa segue em memória.
     }
   }
 
-  private restore(): AssistantTurn[] {
+  private restore(owner: string): AssistantTurn[] {
     try {
-      const raw = sessionStorage.getItem(STORAGE_KEY);
+      const raw = sessionStorage.getItem(this.key(owner));
       if (!raw) return [];
       const parsed: unknown = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
