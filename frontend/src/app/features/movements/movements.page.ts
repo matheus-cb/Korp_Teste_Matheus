@@ -4,15 +4,17 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatIconModule } from '@angular/material/icon';
 import { Router } from '@angular/router';
 import type { ColDef, ValueFormatterParams } from 'ag-grid-community';
-import { catchError, of } from 'rxjs';
+import { catchError, finalize, of } from 'rxjs';
 import type { UiError } from '../../core/models/api.models';
 import type { StockMovement } from '../../core/models/movement.model';
 import { ApiErrorService } from '../../core/services/api-error.service';
 import { ExportService } from '../../core/services/export.service';
 import { MovementService } from '../../core/services/movement.service';
 import { DataGridComponent } from '../../shared/data-grid.component';
+import { RefreshButtonComponent } from '../../shared/refresh-button.component';
 import { InlineAlertComponent } from '../../shared/inline-alert.component';
 import { PageHeaderComponent } from '../../shared/page-header.component';
+import { DataRefreshService } from '../../core/services/data-refresh.service';
 
 /**
  * Extrato de movimentação (UC-09). Torna a auditoria visível: cada baixa com
@@ -20,12 +22,10 @@ import { PageHeaderComponent } from '../../shared/page-header.component';
  */
 @Component({
   selector: 'app-movements-page',
-  imports: [DataGridComponent, InlineAlertComponent, MatIconModule, PageHeaderComponent],
+  imports: [DataGridComponent, InlineAlertComponent, MatIconModule, PageHeaderComponent, RefreshButtonComponent],
   template: `
     <app-page-header module="Fiscal" title="Movimentações">
-      <button type="button" class="nf-btn nf-btn--icon" aria-label="Atualizar" (click)="load()">
-        <mat-icon svgIcon="refresh-cw" />
-      </button>
+      <app-refresh-button [loading]="loading" (refresh)="load()" />
       <button type="button" class="nf-btn" (click)="exportCsv()">
         <mat-icon svgIcon="download" />
         Exportar
@@ -95,6 +95,7 @@ import { PageHeaderComponent } from '../../shared/page-header.component';
 })
 export class MovementsPage {
   private readonly movementService = inject(MovementService);
+  private readonly dataRefresh = inject(DataRefreshService);
   private readonly apiError = inject(ApiErrorService);
   private readonly exporter = inject(ExportService);
   private readonly router = inject(Router);
@@ -104,6 +105,8 @@ export class MovementsPage {
   movements: StockMovement[] = [];
   totalRow: Array<Record<string, unknown>> = [];
   error: UiError | null = null;
+  /** Esta tela não tinha estado de carregamento: atualizar não dava sinal nenhum. */
+  loading = true;
 
   readonly columns: ColDef[] = [
     {
@@ -123,11 +126,18 @@ export class MovementsPage {
   ];
 
   constructor() {
+    // Recarrega quando outra parte do sistema mexe nesta área —
+    // o assistente criando produto ou nota, por exemplo.
+    this.dataRefresh
+      .on('movimentacoes')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.load());
     this.load();
   }
 
   load(): void {
     this.error = null;
+    this.loading = true;
     this.movementService
       .list(1, 200)
       .pipe(
@@ -135,6 +145,7 @@ export class MovementsPage {
           this.error = this.apiError.from(error);
           return of({ items: [], total: 0, page: 1, pageSize: 200 });
         }),
+        finalize(() => (this.loading = false)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((result) => {
