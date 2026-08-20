@@ -25,7 +25,7 @@ const PORTA = Number(process.env.BRIDGE_PORT || 5099);
 const HOST = process.env.BRIDGE_HOST || '127.0.0.1';
 const SEGREDO = process.env.BRIDGE_SECRET || '';
 const CLAUDE = process.env.CLAUDE_BIN || '/var/lib/nfagent/.local/bin/claude';
-const MODELO = process.env.BRIDGE_MODEL || 'haiku';
+const MODELO = process.env.BRIDGE_MODEL || 'sonnet';
 const TIMEOUT_MS = Number(process.env.BRIDGE_TIMEOUT_MS || 90_000);
 const MAX_PROMPT = 24_000;
 // O CLI carrega .claude/settings.json e CLAUDE.md do diretorio onde roda. A

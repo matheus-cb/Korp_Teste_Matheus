@@ -124,7 +124,7 @@ services:
       # do host e nunca e publicada na rede do Docker.
       ClaudeBridge__BaseUrl: ${CLAUDE_BRIDGE_URL:-http://host.docker.internal:5099/}
       ClaudeBridge__Secret: ${CLAUDE_BRIDGE_SECRET:-}
-      ClaudeBridge__Model: ${CLAUDE_BRIDGE_MODEL:-haiku}
+      ClaudeBridge__Model: ${CLAUDE_BRIDGE_MODEL:-sonnet}
       DOTNET_gcServer: "0"
     depends_on:
       billing-db:

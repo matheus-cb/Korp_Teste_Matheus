@@ -59,7 +59,7 @@ EnvironmentFile=/etc/notaflow-agent.env
 EnvironmentFile=/etc/notaflow-bridge.env
 Environment=BRIDGE_PORT=5099
 EnvironmentFile=/etc/notaflow-bridge-host.env
-Environment=BRIDGE_MODEL=haiku
+Environment=BRIDGE_MODEL=sonnet
 Environment=CLAUDE_BIN=/var/lib/nfagent/.local/bin/claude
 ExecStart=/usr/bin/node /var/lib/nfagent/bridge/server.js
 Restart=always

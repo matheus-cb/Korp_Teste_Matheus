@@ -67,7 +67,7 @@ services:
       AI__Provider: ${AI_PROVIDER:-}
       ClaudeBridge__BaseUrl: ${CLAUDE_BRIDGE_URL:-http://host.docker.internal:5099/}
       ClaudeBridge__Secret: ${CLAUDE_BRIDGE_SECRET:-}
-      ClaudeBridge__Model: ${CLAUDE_BRIDGE_MODEL:-haiku}
+      ClaudeBridge__Model: ${CLAUDE_BRIDGE_MODEL:-sonnet}
       Cors__Origins__0: http://localhost:4200
     depends_on:
       billing-db:

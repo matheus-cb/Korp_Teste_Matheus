@@ -31,7 +31,7 @@ public sealed class ClaudeBridgeOptions
     public const string Section = "ClaudeBridge";
     public string BaseUrl { get; init; } = string.Empty;
     public string Secret { get; init; } = string.Empty;
-    public string Model { get; init; } = "haiku";
+    public string Model { get; init; } = "sonnet";
     public int TimeoutSeconds { get; init; } = 120;
 }
 
