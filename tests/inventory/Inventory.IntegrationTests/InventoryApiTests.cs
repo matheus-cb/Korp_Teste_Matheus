@@ -190,9 +190,12 @@ public sealed class InventoryApiTests(InventoryApiFixture fixture)
         int balance,
         bool tracksStock = true)
     {
-        using var response = await fixture.Client.PostAsJsonAsync(
-            "/api/products",
-            new CreateProductRequest(code, $"Product {code}", balance, tracksStock));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/internal/products")
+        {
+            Content = JsonContent.Create(new CreateProductRequest(code, $"Product {code}", balance, tracksStock))
+        };
+        request.Headers.Add("X-Notaflow-Actor", "Integration Test");
+        using var response = await fixture.Client.SendAsync(request);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<ProductResponse>())!;
     }
