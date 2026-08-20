@@ -204,10 +204,13 @@
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   height: 30px;
   align-items: center;
-  padding: 0 var(--sp-2);
+  /* Espaco a direita reservado para a estrela: sem isso o rotulo se desloca
+     quando ela aparece no hover. */
+  padding: 0 26px 0 var(--sp-2);
   border-left: 2px solid transparent;
   border-radius: var(--r-sm);
   color: var(--n-600);
@@ -425,13 +428,6 @@ mat-icon svg {
 
 /* --- Operador na faixa global --- */
 
-.user {
-  display: flex;
-  align-items: center;
-  color: var(--n-600);
-  font-size: var(--fs-sm);
-  gap: var(--sp-2);
-}
 
 .avatar {
   display: grid;
@@ -468,8 +464,123 @@ mat-icon svg {
   background: var(--n-100);
 }
 
-@media (width <= 767px) {
-  .user-name {
-    display: none;
+/* ---------------------------------------------------------------- conta ---
+   Empresa e usuario no cabecalho da navegacao. Saiu da barra de acoes, onde a
+   identidade competia visualmente com "Sair" e "Assistente". */
+/* Continuacao do cabecalho, nao um grupo proprio: sem borda entre a marca e a
+   identidade, e o respiro de cima vem do .brand. */
+.account {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--sp-3) var(--sp-3);
+  gap: 2px;
+}
+
+.account--rail {
+  align-items: center;
+  padding: 0 0 var(--sp-3);
+}
+
+.account-org {
+  overflow: hidden;
+  color: var(--n-500);
+  font-size: var(--fs-xs);
+  font-weight: 660;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.account-user {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.account-user-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.account-user-text strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 640;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-user-text small {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+/* ------------------------------------------------------------- favoritos ---
+   A estrela fica invisivel ate o hover, mas continua no fluxo (opacity, nao
+   display) para nao reflowar a linha. Marcada, fica visivel sempre: e o unico
+   sinal de que o item esta favoritado. */
+.fav-btn {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--n-400);
+  cursor: pointer;
+  opacity: 0;
+  place-items: center;
+  transform: translateY(-50%);
+  transition:
+    opacity 120ms ease,
+    color 120ms ease;
+}
+
+.fav-btn mat-icon {
+  /* `.nav-item mat-icon` fixa a cor do icone do item, e isso vence a heranca do
+     botao: sem `inherit`, a estrela marcada ficava cinza mesmo com o botao verde. */
+  width: 14px;
+  height: 14px;
+  color: inherit;
+}
+
+.nav-item:hover .fav-btn,
+.nav-item:focus-within .fav-btn,
+.fav-btn:focus-visible {
+  opacity: 1;
+}
+
+.fav-btn:hover {
+  color: var(--brand-600);
+  background: var(--brand-50);
+}
+
+.fav-btn.is-on {
+  color: var(--brand-600);
+  opacity: 1;
+}
+
+/* Estrela do Lucide vem so com contorno. Marcada, ela e preenchida: contorno
+   verde em 14px e um sinal fraco demais para dizer "esta favoritado".
+   Precisa de ::ng-deep porque o mat-icon injeta o SVG depois da renderizacao,
+   e o svg nao recebe o atributo de encapsulamento do componente. */
+:host ::ng-deep .fav-btn.is-on svg,
+:host ::ng-deep .fav-btn.is-on svg * {
+  fill: currentColor;
+}
+
+/* Sem hover — em toque, o hover nao existe e a estrela ficaria inalcancavel. */
+@media (hover: none) {
+  .fav-btn {
+    opacity: 1;
   }
 }

@@ -1,5 +1,5 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -8,6 +8,7 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/services/auth.service';
+import { FavoritesService } from '../core/services/favorites.service';
 import { AgentPanelComponent } from './agent-panel.component';
 
 interface NavigationItem {
@@ -81,6 +82,35 @@ const AGENT_PUSH = '(min-width: 1024px)';
           </button>
         </div>
 
+        <!--
+          Empresa e usuario fazem parte do CABECALHO, junto da marca: sao a
+          resposta a "onde estou e como quem". Abaixo da busca eles pareciam
+          mais um item de navegacao, e abaixo da linha, um grupo solto.
+        -->
+        @if (!rail) {
+          <div class="account">
+            <!-- Sem icone: nao ha um de empresa no conjunto, e reaproveitar o
+                 de Estoque diria a coisa errada. -->
+            <span class="account-org">{{ organizacao }}</span>
+            <span class="account-user">
+              <span class="avatar" aria-hidden="true">{{ initials() }}</span>
+              <span class="account-user-text">
+                <strong>{{ auth.user()?.displayName }}</strong>
+                <small>{{ auth.user()?.userName }}</small>
+              </span>
+            </span>
+          </div>
+        } @else {
+          <div class="account account--rail">
+            <span
+              class="avatar"
+              [matTooltip]="auth.user()?.displayName ?? ''"
+              matTooltipPosition="right"
+              >{{ initials() }}</span
+            >
+          </div>
+        }
+
         <!-- Busca de NAVEGAÇÃO: filtra módulos e funções, não dados. -->
         <div class="nav-search">
           <mat-icon svgIcon="search" aria-hidden="true" />
@@ -92,6 +122,7 @@ const AGENT_PUSH = '(min-width: 1024px)';
             aria-label="Buscar módulos e funções"
           />
         </div>
+
 
         <nav class="nav" aria-label="Seções do sistema">
           @if (matches('Visão geral')) {
@@ -109,26 +140,37 @@ const AGENT_PUSH = '(min-width: 1024px)';
             </a>
           }
 
-          @if (matches('Notas abertas')) {
-            <p class="nav-label">Favorito</p>
-            <!--
-              Favorito é uma CONSULTA salva, não um atalho para a mesma tela do
-              módulo: repetir o item faria dois links idênticos ficarem ativos
-              ao mesmo tempo.
-            -->
-            <a
-              class="nav-item"
-              routerLink="/notas"
-              [queryParams]="{ situacao: 'abertas' }"
-              routerLinkActive="active"
-              [routerLinkActiveOptions]="{ exact: true, queryParams: 'exact', matrixParams: 'ignored', fragment: 'ignored', paths: 'exact' }"
-              [matTooltip]="rail ? 'Notas abertas' : ''"
-              matTooltipPosition="right"
-              (click)="closeOnMobile()"
-            >
-              <mat-icon svgIcon="star" aria-hidden="true" />
-              <span class="nav-text">Notas abertas</span>
-            </a>
+          <!--
+            Favoritos sao as proprias telas do modulo, marcadas pela pessoa. Sem
+            nenhum marcado a secao nao existe: cabecalho de lista vazia e ruido.
+          -->
+          @if (favoritos().length) {
+            <p class="nav-label">Favoritos</p>
+            @for (item of favoritos(); track item.path) {
+              <a
+                class="nav-item"
+                [routerLink]="item.path"
+                routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+                [matTooltip]="rail ? item.label : ''"
+                matTooltipPosition="right"
+                (click)="closeOnMobile()"
+              >
+                <mat-icon [svgIcon]="item.icon" aria-hidden="true" />
+                <span class="nav-text">{{ item.label }}</span>
+                @if (!rail) {
+                  <button
+                    type="button"
+                    class="fav-btn is-on"
+                    [attr.aria-label]="desmarcarRotulo(item.label)"
+                    [attr.aria-pressed]="true"
+                    (click)="alternarFavorito($event, item.path)"
+                  >
+                    <mat-icon svgIcon="star" />
+                  </button>
+                }
+              </a>
+            }
           }
 
           @if (visibleGroups().length) {
@@ -151,6 +193,23 @@ const AGENT_PUSH = '(min-width: 1024px)';
               >
                 <mat-icon [svgIcon]="item.icon" aria-hidden="true" />
                 <span class="nav-text">{{ item.label }}</span>
+                <!--
+                  A estrela aparece no hover e no foco. So no hover ela seria
+                  inalcancavel por teclado, e um favorito ja marcado precisa
+                  ficar visivel sempre, senao nao ha como saber que esta marcado.
+                -->
+                @if (!rail) {
+                  <button
+                    type="button"
+                    class="fav-btn"
+                    [class.is-on]="ehFavorito(item.path)"
+                    [attr.aria-label]="favoritoRotulo(item)"
+                    [attr.aria-pressed]="ehFavorito(item.path)"
+                    (click)="alternarFavorito($event, item.path)"
+                  >
+                    <mat-icon svgIcon="star" />
+                  </button>
+                }
               </a>
             }
           }
@@ -193,11 +252,14 @@ const AGENT_PUSH = '(min-width: 1024px)';
 
             <span class="gsep"></span>
 
-            <span class="user">
-              <span class="avatar" aria-hidden="true">{{ initials() }}</span>
-              <span class="user-name">{{ auth.user()?.displayName }}</span>
-            </span>
-            <button type="button" class="icon-btn" aria-label="Sair" (click)="signOut()">
+            <!-- A identidade vive no cabecalho da navegacao; aqui fica so a acao. -->
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Sair"
+              matTooltip="Sair"
+              (click)="signOut()"
+            >
               <mat-icon svgIcon="log-out" />
             </button>
           </div>
@@ -258,6 +320,27 @@ export class AppShellComponent {
     },
   ];
 
+  /**
+   * Empresa mostrada no cabecalho. Fixa por enquanto: o backend nao tem
+   * conceito de organizacao, e inventar um campo agora seria prometer
+   * multi-empresa que nao existe.
+   */
+  readonly organizacao = 'Matriz';
+
+  private readonly favoritesService = inject(FavoritesService);
+
+  /**
+   * Favoritos resolvidos contra a definicao do menu. Guardamos so o caminho, e
+   * o rotulo vem daqui: renomear um item nao deixa favorito com nome velho, e
+   * caminho que deixou de existir simplesmente desaparece da lista.
+   */
+  readonly favoritos = computed(() => {
+    const marcados = this.favoritesService.paths();
+    return this.groups
+      .flatMap((group) => group.items)
+      .filter((item) => marcados.includes(item.path));
+  });
+
   navQuery = '';
   isMobile = false;
   rail = false;
@@ -288,6 +371,30 @@ export class AppShellComponent {
       .slice(0, 2)
       .map((part) => part[0]?.toLocaleUpperCase('pt-BR') ?? '')
       .join('');
+  }
+
+  ehFavorito(path: string): boolean {
+    return this.favoritesService.isFavorite(path);
+  }
+
+  favoritoRotulo(item: { label: string; path: string }): string {
+    return this.ehFavorito(item.path)
+      ? this.desmarcarRotulo(item.label)
+      : `Adicionar ${item.label} aos favoritos`;
+  }
+
+  desmarcarRotulo(label: string): string {
+    return `Remover ${label} dos favoritos`;
+  }
+
+  /**
+   * A estrela vive dentro do link de navegacao, entao o clique precisa parar
+   * ali: sem isto, marcar favorito tambem navegaria para a tela.
+   */
+  alternarFavorito(event: Event, path: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.favoritesService.toggle(path);
   }
 
   signOut(): void {
