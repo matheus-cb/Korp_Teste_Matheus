@@ -1,0 +1,18 @@
+# SITE_ADDRESS controla o modo:
+#   143-95-221-82.nip.io  -> HTTPS automatico (Let's Encrypt), sem comprar dominio
+#   :80                   -> HTTP puro (use so para teste; o login vai em claro)
+{$SITE_ADDRESS} {
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# O nginx do frontend ja faz a separacao de rotas publicas e internas:
+	# /inventory-api/ so libera catalogo e movimentos, o resto devolve 404.
+	reverse_proxy frontend:80
+}

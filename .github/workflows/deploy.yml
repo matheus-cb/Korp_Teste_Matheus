@@ -1,0 +1,156 @@
+# Deploy automatico para a VPS.
+#
+# Roda apos o quality-gate passar em main. O build acontece aqui, nunca na VPS:
+# 1 vCPU / 2 GB nao aguenta `dotnet publish` + `ng build` (docs/plano-agente-vps.md,
+# secao 9.1). A VPS so faz pull das imagens ja prontas.
+name: deploy
+
+on:
+  workflow_run:
+    workflows: [quality-gate]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-producao
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # Nao implantar em cima de um quality-gate vermelho.
+  guard:
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - run: echo "quality-gate aprovado; seguindo para build"
+
+  build:
+    needs: guard
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: inventory
+            context: services/inventory
+          - name: billing
+            context: services/billing
+          - name: frontend
+            context: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/notaflow-${{ matrix.name }}:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/notaflow-${{ matrix.name }}:${{ github.event.workflow_run.head_sha || github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    environment: producao
+    steps:
+      - name: Abrir SSH para a VPS
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          SSH_HOST: ${{ secrets.VPS_HOST }}
+          SSH_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # O compose e o Caddyfile viajam junto com o commit: a VPS nunca fica
+      # com uma versao de infraestrutura diferente da que gerou as imagens.
+      - name: Enviar arquivos de infraestrutura
+        env:
+          SSH_HOST: ${{ secrets.VPS_HOST }}
+          SSH_PORT: ${{ secrets.VPS_PORT }}
+          SSH_USER: ${{ secrets.VPS_USER }}
+        run: |
+          scp -i ~/.ssh/id_deploy -P "$SSH_PORT"             deploy/docker-compose.prod.yml deploy/Caddyfile             "$SSH_USER@$SSH_HOST:/opt/notaflow/"
+
+      - name: Publicar
+        env:
+          SSH_HOST: ${{ secrets.VPS_HOST }}
+          SSH_PORT: ${{ secrets.VPS_PORT }}
+          SSH_USER: ${{ secrets.VPS_USER }}
+          # Token efemero do proprio job: a VPS faz login no GHCR na hora do
+          # deploy e nao guarda credencial permanente de registry.
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "GHCR_TOKEN='$GHCR_TOKEN' GHCR_USER='$GHCR_USER' SHA='$SHA' OWNER='$OWNER' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/notaflow
+
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+          # Fixar a tag no SHA torna o deploy reproduzivel e o rollback trivial.
+          for svc in inventory billing frontend; do
+            key="IMAGE_$(echo "$svc" | tr '[:lower:]' '[:upper:]')"
+            val="ghcr.io/$OWNER/notaflow-$svc:$SHA"
+            if grep -q "^$key=" .env; then
+              sed -i "s|^$key=.*|$key=$val|" .env
+            else
+              echo "$key=$val" >> .env
+            fi
+          done
+
+          docker compose -f docker-compose.prod.yml pull
+          docker compose -f docker-compose.prod.yml up -d --remove-orphans
+          docker logout ghcr.io
+
+          # A stack precisa ficar de pe sozinha; nao basta o compose retornar 0.
+          echo "aguardando healthchecks..."
+          for i in $(seq 1 40); do
+            unhealthy=$(docker compose -f docker-compose.prod.yml ps \
+              --format '{{.Service}} {{.Health}}' | awk '$2=="unhealthy"||$2=="starting"' | wc -l)
+            [ "$unhealthy" -eq 0 ] && break
+            sleep 6
+          done
+          docker compose -f docker-compose.prod.yml ps
+
+          curl --fail --silent --show-error --max-time 15 http://127.0.0.1:5002/health/ready > /dev/null
+          curl --fail --silent --show-error --max-time 15 http://127.0.0.1:5001/health      > /dev/null
+          echo "deploy do $SHA concluido"
+
+          docker image prune -f --filter "until=168h" > /dev/null
+          REMOTE
+
+      - name: Limpar chave
+        if: always()
+        run: rm -f ~/.ssh/id_deploy

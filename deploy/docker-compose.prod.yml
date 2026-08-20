@@ -1,0 +1,159 @@
+# Compose de producao - NotaFlow na VPS.
+#
+# Diferencas em relacao ao compose de desenvolvimento:
+#   - Nao ha build. As imagens vem do GHCR, construidas pelo CI. A VPS tem
+#     1 vCPU / 2 GB: `dotnet publish` + `ng build` aqui dariam OOM (secao 9.1
+#     do docs/plano-agente-vps.md).
+#   - Caddy termina TLS e e o unico servico exposto a internet.
+#   - Limites de memoria explicitos: a soma cabe em 2 GB com folga para o SO.
+#   - restart: unless-stopped em tudo, para a stack voltar sozinha apos reboot.
+name: notaflow
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    <<: *restart
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?defina SITE_ADDRESS no .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [frontend]
+    networks: [app]
+    deploy:
+      resources:
+        limits: { memory: 96M }
+
+  inventory-db:
+    image: postgres:17-alpine
+    <<: *restart
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_USER: inventory
+      POSTGRES_PASSWORD: ${POSTGRES_INVENTORY_PASSWORD:?obrigatorio em producao}
+    command: >
+      postgres -c shared_buffers=64MB -c max_connections=50
+               -c effective_cache_size=192MB -c work_mem=4MB
+    volumes:
+      - inventory-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory -d inventory"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    networks: [inventory-data]
+    deploy:
+      resources:
+        limits: { memory: 256M }
+
+  billing-db:
+    image: postgres:17-alpine
+    <<: *restart
+    environment:
+      POSTGRES_DB: billing
+      POSTGRES_USER: billing
+      POSTGRES_PASSWORD: ${POSTGRES_BILLING_PASSWORD:?obrigatorio em producao}
+    command: >
+      postgres -c shared_buffers=64MB -c max_connections=50
+               -c effective_cache_size=192MB -c work_mem=4MB
+    volumes:
+      - billing-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing -d billing"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    networks: [billing-data]
+    deploy:
+      resources:
+        limits: { memory: 256M }
+
+  inventory:
+    image: ${IMAGE_INVENTORY:?defina IMAGE_INVENTORY no .env}
+    <<: *restart
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__InventoryDatabase: Host=inventory-db;Port=5432;Database=inventory;Username=inventory;Password=${POSTGRES_INVENTORY_PASSWORD}
+      InternalAuth__Token: ${INTERNAL_SERVICE_TOKEN:?obrigatorio}
+      Cors__AllowedOrigins__0: ${PUBLIC_ORIGIN:?defina PUBLIC_ORIGIN no .env}
+      DOTNET_gcServer: "0"
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5001:8080"   # so loopback: debug via tunel SSH
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks: [app, inventory-data]
+    deploy:
+      resources:
+        limits: { memory: 384M }
+
+  billing:
+    image: ${IMAGE_BILLING:?defina IMAGE_BILLING no .env}
+    <<: *restart
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Billing: Host=billing-db;Port=5432;Database=billing;Username=billing;Password=${POSTGRES_BILLING_PASSWORD}
+      Inventory__BaseUrl: http://inventory:8080
+      Inventory__McpEndpoint: http://inventory:8080/mcp
+      InternalAuth__Token: ${INTERNAL_SERVICE_TOKEN}
+      Seed__Password: ${SEED_PASSWORD:?defina SEED_PASSWORD no .env}
+      OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      OpenAI__Model: ${OPENAI_MODEL:-gpt-5.6-luna}
+      Cors__Origins__0: ${PUBLIC_ORIGIN}
+      DOTNET_gcServer: "0"
+    depends_on:
+      billing-db:
+        condition: service_healthy
+      inventory:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5002:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks: [app, billing-data]
+    deploy:
+      resources:
+        limits: { memory: 384M }
+
+  frontend:
+    image: ${IMAGE_FRONTEND:?defina IMAGE_FRONTEND no .env}
+    <<: *restart
+    depends_on:
+      inventory:
+        condition: service_healthy
+      billing:
+        condition: service_healthy
+    networks: [app]
+    deploy:
+      resources:
+        limits: { memory: 96M }
+
+volumes:
+  inventory-data:
+  billing-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  app:
+  inventory-data:
+    internal: true
+  billing-data:
+    internal: true
