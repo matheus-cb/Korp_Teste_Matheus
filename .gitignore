@@ -18,6 +18,9 @@ StrykerOutput/
 **/node_modules/
 frontend/dist/
 frontend/.angular/
+# Cache do Angular tambem na raiz: `ng build` rodado dali gera 3,6 MB de
+# artefato, incluindo um .db-lock, que nao pertence ao repositorio.
+.angular/
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
