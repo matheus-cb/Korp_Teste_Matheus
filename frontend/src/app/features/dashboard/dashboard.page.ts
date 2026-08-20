@@ -11,9 +11,11 @@ import { ApiErrorService } from '../../core/services/api-error.service';
 import { InvoiceService } from '../../core/services/invoice.service';
 import { ProductService } from '../../core/services/product.service';
 import { InlineAlertComponent } from '../../shared/inline-alert.component';
+import { RefreshButtonComponent } from '../../shared/refresh-button.component';
 import { LoadingStateComponent } from '../../shared/loading-state.component';
 import { PageHeaderComponent } from '../../shared/page-header.component';
 import { StatusPillComponent, toDisplayState } from '../../shared/status-pill.component';
+import { DataRefreshService } from '../../core/services/data-refresh.service';
 
 interface DashboardData {
   products: Product[];
@@ -29,13 +31,10 @@ interface DashboardData {
     MatIconModule,
     PageHeaderComponent,
     RouterLink,
-    StatusPillComponent,
-  ],
+    StatusPillComponent, RefreshButtonComponent],
   template: `
     <app-page-header module="Operação" title="Visão geral">
-      <button type="button" class="nf-btn nf-btn--icon" aria-label="Atualizar" (click)="load()">
-        <mat-icon svgIcon="refresh-cw" />
-      </button>
+      <app-refresh-button [loading]="loading" (refresh)="load()" />
       <a class="nf-btn nf-btn--primary" routerLink="/notas">
         <mat-icon svgIcon="plus" />
         Nova nota
@@ -144,6 +143,7 @@ interface DashboardData {
 export class DashboardPage {
   protected readonly toDisplayState = toDisplayState;
   private readonly productService = inject(ProductService);
+  private readonly dataRefresh = inject(DataRefreshService);
   private readonly invoiceService = inject(InvoiceService);
   private readonly apiError = inject(ApiErrorService);
   private readonly destroyRef = inject(DestroyRef);
@@ -153,6 +153,12 @@ export class DashboardPage {
   data: DashboardData = { products: [], invoices: [] };
 
   constructor() {
+    // Recarrega quando outra parte do sistema mexe nesta área —
+    // o assistente criando produto ou nota, por exemplo.
+    this.dataRefresh
+      .on('notas')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.load());
     this.load();
   }
 

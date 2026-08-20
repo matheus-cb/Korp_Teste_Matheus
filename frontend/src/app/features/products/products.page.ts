@@ -19,9 +19,11 @@ import { ApiErrorService } from '../../core/services/api-error.service';
 import { ExportService } from '../../core/services/export.service';
 import { ProductService } from '../../core/services/product.service';
 import { DataGridComponent } from '../../shared/data-grid.component';
+import { RefreshButtonComponent } from '../../shared/refresh-button.component';
 import { InlineAlertComponent } from '../../shared/inline-alert.component';
 import { PageHeaderComponent } from '../../shared/page-header.component';
 import { ProductFormDialog } from './product-form.dialog';
+import { DataRefreshService } from '../../core/services/data-refresh.service';
 
 interface BalanceState {
   label: string;
@@ -42,13 +44,10 @@ function balanceState(product: Pick<Product, 'balance' | 'tracksStock'>): Balanc
     DataGridComponent,
     InlineAlertComponent,
     MatIconModule,
-    PageHeaderComponent,
-  ],
+    PageHeaderComponent, RefreshButtonComponent],
   template: `
     <app-page-header module="Estoque" title="Produtos">
-      <button type="button" class="nf-btn nf-btn--icon" aria-label="Atualizar" (click)="reload()">
-        <mat-icon svgIcon="refresh-cw" />
-      </button>
+      <app-refresh-button [loading]="loading" (refresh)="reload()" />
       <button type="button" class="nf-btn" (click)="exportCsv()">
         <mat-icon svgIcon="download" />
         Exportar
@@ -102,6 +101,7 @@ function balanceState(product: Pick<Product, 'balance' | 'tracksStock'>): Balanc
 })
 export class ProductsPage {
   private readonly productService = inject(ProductService);
+  private readonly dataRefresh = inject(DataRefreshService);
   private readonly apiError = inject(ApiErrorService);
   private readonly exporter = inject(ExportService);
   private readonly dialog = inject(MatDialog);
@@ -153,6 +153,12 @@ export class ProductsPage {
   ];
 
   constructor() {
+    // Recarrega quando outra parte do sistema mexe nesta área —
+    // o assistente criando produto ou nota, por exemplo.
+    this.dataRefresh
+      .on('produtos')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.reload());
     this.searchTerms
       .pipe(
         startWith(''),

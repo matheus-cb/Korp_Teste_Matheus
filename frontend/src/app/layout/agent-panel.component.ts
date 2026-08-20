@@ -12,6 +12,7 @@ import { ApiErrorService } from '../core/services/api-error.service';
 import type { AssistantTurn } from '../core/services/assistant-conversation.service';
 import { AssistantConversationService } from '../core/services/assistant-conversation.service';
 import { AssistantService } from '../core/services/assistant.service';
+import { DataRefreshService } from '../core/services/data-refresh.service';
 import { CurrentScreenService } from '../core/services/current-screen.service';
 import { DraftTransferService } from '../core/services/draft-transfer.service';
 import { NotificationService } from '../core/services/notification.service';
@@ -226,6 +227,7 @@ export class AgentPanelComponent {
   private readonly assistant = inject(AssistantService);
   private readonly conversation = inject(AssistantConversationService);
   private readonly screen = inject(CurrentScreenService);
+  private readonly dataRefresh = inject(DataRefreshService);
   private readonly apiError = inject(ApiErrorService);
   private readonly transfer = inject(DraftTransferService);
   private readonly notification = inject(NotificationService);
@@ -378,6 +380,10 @@ export class AgentPanelComponent {
             : `Nota ${result.number} criada e aberta. Confira e feche quando quiser.`;
 
           this.conversation.replace(turn, { ...turn, text: texto, action: undefined, done: true });
+
+          // A tela de destino pode já estar montada: navegar até ela não
+          // recarrega nada, e a pessoa veria a lista sem o que acabou de criar.
+          this.dataRefresh.invalidate(produtos ? 'produtos' : 'notas');
           this.notification.success(produtos ? 'Produtos cadastrados' : 'Nota criada', texto);
           this.closed.emit();
           void this.router.navigate(produtos ? ['/produtos'] : ['/notas', result.invoiceId]);

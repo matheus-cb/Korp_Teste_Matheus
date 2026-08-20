@@ -12,12 +12,14 @@ import { ApiErrorService } from '../../core/services/api-error.service';
 import { ExportService } from '../../core/services/export.service';
 import { InvoiceService } from '../../core/services/invoice.service';
 import { DataGridComponent } from '../../shared/data-grid.component';
+import { RefreshButtonComponent } from '../../shared/refresh-button.component';
 import { InlineAlertComponent } from '../../shared/inline-alert.component';
 import { PageHeaderComponent } from '../../shared/page-header.component';
 import { toDisplayState } from '../../shared/status-pill.component';
 import { CreateInvoiceDialog } from './create-invoice.dialog';
 import { ImportInvoicesDialog } from './import-invoices.dialog';
 import { InvoiceDetailDialog } from './invoice-detail.dialog';
+import { DataRefreshService } from '../../core/services/data-refresh.service';
 
 type StatusFilter = 'all' | 'Open' | 'Closed';
 
@@ -41,13 +43,10 @@ const CLASSES: Record<string, string> = {
     DataGridComponent,
     InlineAlertComponent,
     MatIconModule,
-    PageHeaderComponent,
-  ],
+    PageHeaderComponent, RefreshButtonComponent],
   template: `
     <app-page-header module="Fiscal" title="Notas fiscais">
-      <button type="button" class="nf-btn nf-btn--icon" aria-label="Atualizar" (click)="load()">
-        <mat-icon svgIcon="refresh-cw" />
-      </button>
+      <app-refresh-button [loading]="loading" (refresh)="load()" />
       <button type="button" class="nf-btn" (click)="openImport()">
         <mat-icon svgIcon="upload" />
         Importar
@@ -159,6 +158,7 @@ const CLASSES: Record<string, string> = {
 })
 export class InvoicesPage {
   private readonly invoiceService = inject(InvoiceService);
+  private readonly dataRefresh = inject(DataRefreshService);
   private readonly apiError = inject(ApiErrorService);
   private readonly exporter = inject(ExportService);
   private readonly dialog = inject(MatDialog);
@@ -284,6 +284,12 @@ export class InvoicesPage {
   }
 
   constructor() {
+    // Recarrega quando outra parte do sistema mexe nesta área —
+    // o assistente criando produto ou nota, por exemplo.
+    this.dataRefresh
+      .on('notas')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.load());
     this.load();
     // /notas/:id abre o detalhe em modal sobre a listagem, preservando o link direto.
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {

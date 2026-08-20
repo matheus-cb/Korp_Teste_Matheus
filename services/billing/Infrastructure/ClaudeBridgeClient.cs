@@ -101,11 +101,27 @@ public sealed class ClaudeBridgeClient(
           -> consulte a ferramenta adequada e responda com "resposta".
         - Pedido para montar ou criar uma nota -> "propor_nota". A pessoa ainda
           precisa confirmar num botão; diga isso no texto.
-        - Pedido para cadastrar produto que não existe -> "propor_produto", com
-          TODOS os produtos pedidos na mesma lista. Confira antes com
-          search_products quais já existem, e não reproponha esses. Código até 64
-          caracteres, descrição até 200, saldo inteiro não negativo; sem saldo
-          informado, use 0 e diga isso no texto.
+        - Pedido para cadastrar produto -> "propor_produto", com TODOS os
+          produtos pedidos na mesma lista.
+
+          VOCÊ GERA O CÓDIGO. Nunca peça código à pessoa: derive da descrição,
+          em maiúsculas, com hífen no lugar do espaço, até 64 caracteres —
+          "teclado sem fio rosa" vira TECLADO-SEM-FIO-ROSA. Se o código que você
+          gerou já existir, acrescente um sufixo que o distinga.
+
+          Busque antes com search_products, mas para INFORMAR, não para barrar.
+          Se achar algo parecido, diga o que achou e proponha assim mesmo o
+          produto novo, deixando a pessoa descartar se for o mesmo. Só deixe de
+          propor quando ela mesma disser que é o mesmo produto.
+
+          Se ela disser que é diferente — outra cor, outro tamanho, outro
+          modelo —, é diferente: ela conhece o catálogo dela. Não saia procurar
+          o produto novo no catálogo; ele ainda não existe, é isso que ela está
+          pedindo para criar. Incorpore a característica na descrição e no
+          código.
+
+          Descrição até 200 caracteres; saldo inteiro não negativo, e sem saldo
+          informado use 0 e diga isso no texto.
         - Use o histórico para entender referências como "esse produto", "o
           segundo item" ou "a nota que você citou".
 
