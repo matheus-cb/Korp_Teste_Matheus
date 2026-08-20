@@ -76,6 +76,11 @@
   --side-w: 236px;
   --side-w-collapsed: 52px;
   --agent-w: 326px;
+  /* Larguras de modal. Antes cada dialogo escolhia a sua (540, 640, 760, 900),
+     o que fazia quatro modais parecerem quatro sistemas. */
+  --modal-sm: min(560px, 94vw);
+  --modal-md: min(720px, 94vw);
+  --modal-lg: min(920px, 94vw);
 
   --shadow-sm: 0 1px 2px rgb(20 26 32 / 6%), 0 1px 3px rgb(20 26 32 / 4%);
   /* Card de pagina: precisa de mais presenca que --shadow-sm sem virar
@@ -646,3 +651,40 @@ a {
     padding: 0 var(--sp-3);
   }
 }
+
+/* ======================================================================
+   FORMULARIO EM GRADE
+   ----------------------------------------------------------------------
+   Campos curtos (codigo, quantidade, saldo) nao precisam da largura toda do
+   modal. Empilhados um por linha, eles esticam sem motivo e o formulario fica
+   mais alto do que precisa -- o que forcava rolagem em modais de quatro campos.
+
+   `auto-fit` com `minmax` resolve a responsividade sem media query: em modal
+   estreito ou celular as colunas colapsam para uma so, sozinhas.
+   ====================================================================== */
+.nf-form-grid {
+  display: grid;
+  align-items: start;
+  gap: var(--sp-3) var(--sp-3);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+/* Campo que ocupa a linha inteira: descricao, observacao, lista de itens. */
+.nf-field--full {
+  grid-column: 1 / -1;
+}
+
+/* ----------------------------------------------------------------------
+   Campo indisponivel para edicao. Precisa ser obvio: sem contraste de fundo,
+   a pessoa tenta digitar e nao entende por que nada acontece.
+   ---------------------------------------------------------------------- */
+.nf-input:disabled,
+.nf-select:disabled,
+.nf-textarea:disabled,
+.nf-input[readonly],
+.nf-textarea[readonly] {
+  color: var(--n-500);
+  background: var(--n-50);
+  cursor: not-allowed;
+}
+

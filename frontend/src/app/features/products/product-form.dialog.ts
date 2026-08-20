@@ -28,7 +28,7 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
       (confirm)="submit()"
       (dismiss)="close()"
     >
-      <form [formGroup]="form" novalidate (ngSubmit)="submit()">
+      <form class="nf-form-grid" [formGroup]="form" novalidate (ngSubmit)="submit()">
         <div class="nf-field" [class.invalid]="invalid('code')">
           <label class="nf-label" for="product-code">Código<span class="req">*</span></label>
           <input
@@ -47,7 +47,8 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
           }
         </div>
 
-        <div class="nf-field" [class.invalid]="invalid('description')">
+        <!-- Descricao ocupa a linha: e o campo mais longo do formulario. -->
+        <div class="nf-field nf-field--full" [class.invalid]="invalid('description')">
           <label class="nf-label" for="product-description">Descrição<span class="req">*</span></label>
           <input
             id="product-description"
@@ -64,7 +65,7 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
           }
         </div>
 
-        <div class="nf-field checkbox-field">
+        <div class="nf-field nf-field--full checkbox-field">
           <label class="check">
             <input type="checkbox" formControlName="tracksStock" />
             <span>Controla estoque</span>
@@ -76,7 +77,7 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
         </div>
 
         @if (form.controls.tracksStock.value) {
-          <div class="nf-field balance" [class.invalid]="invalid('balance')">
+          <div class="nf-field" [class.invalid]="invalid('balance')">
             <label class="nf-label" for="product-balance">Saldo inicial<span class="req">*</span></label>
             <input
               id="product-balance"
@@ -96,12 +97,14 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
         }
 
         @if (error) {
-          <app-inline-alert
+          <div class="nf-field--full">
+            <app-inline-alert
             tone="error"
             [title]="error.title"
             [message]="error.message"
             [traceId]="error.traceId"
           />
+          </div>
         }
 
         <button type="submit" hidden></button>
@@ -109,15 +112,7 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
     </app-modal-shell>
   `,
   styles: `
-    form {
-      display: flex;
-      flex-direction: column;
-      gap: var(--sp-4);
-    }
 
-    .balance {
-      max-width: 200px;
-    }
 
     .check {
       display: flex;

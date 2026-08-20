@@ -410,7 +410,7 @@ export class InvoicesPage {
   openCreate(): void {
     this.dialog
       .open(CreateInvoiceDialog, {
-        width: 'min(760px, 94vw)',
+        width: 'var(--modal-md)',
         panelClass: 'nf-dialog',
         autoFocus: 'first-tabbable',
       })
@@ -433,7 +433,7 @@ export class InvoicesPage {
   openImport(): void {
     this.dialog
       .open(ImportInvoicesDialog, {
-        width: 'min(640px, 94vw)',
+        width: 'var(--modal-sm)',
         panelClass: 'nf-dialog',
         autoFocus: 'first-tabbable',
       })
@@ -452,7 +452,7 @@ export class InvoicesPage {
     this.dialog
       .open(InvoiceDetailDialog, {
         id,
-        width: 'min(900px, 94vw)',
+        width: 'var(--modal-lg)',
         panelClass: 'nf-dialog',
         data: { id },
         autoFocus: 'first-tabbable',

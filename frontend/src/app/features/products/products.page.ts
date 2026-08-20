@@ -231,7 +231,7 @@ export class ProductsPage {
   openCreate(): void {
     this.dialog
       .open(ProductFormDialog, {
-        width: 'min(540px, 94vw)',
+        width: 'var(--modal-sm)',
         panelClass: 'nf-dialog',
         autoFocus: 'first-tabbable',
       })

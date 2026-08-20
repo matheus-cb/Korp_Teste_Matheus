@@ -1,5 +1,12 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  inject,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -341,6 +348,8 @@ export class AppShellComponent {
       .filter((item) => marcados.includes(item.path));
   });
 
+  private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
+
   navQuery = '';
   isMobile = false;
   rail = false;
@@ -360,6 +369,8 @@ export class AppShellComponent {
         this.rail = !this.isMobile && !state.breakpoints[EXPANDED];
         this.agentOverlay = !state.breakpoints[AGENT_PUSH];
         if (!this.isMobile) this.drawerOpen = false;
+        // A trilha tambem entra e sai por largura de janela, nao so pelo botao.
+        this.ajustarMargemDoConteudo();
       });
   }
 
@@ -408,6 +419,38 @@ export class AppShellComponent {
 
   toggleRail(): void {
     this.rail = !this.rail;
+    this.ajustarMargemDoConteudo();
+  }
+
+  /**
+   * Alinha a margem do conteudo com a largura real da trilha.
+   *
+   * O mat-sidenav-container mede o drawer UMA vez e grava `margin-left` inline
+   * no conteudo. A largura da trilha vem de CSS, e ele nao remede: sobrava uma
+   * faixa morta de 184px (236 - 52) entre a trilha e o conteudo. Nem
+   * `updateContentMargins()`, nem CSS com `!important`, nem disparar `resize`
+   * corrigiram -- o inline do Material continuava valendo.
+   *
+   * Entao gravamos a nossa margem no mesmo lugar. Nao e elegante mexer num
+   * elemento que a biblioteca controla, mas e o unico ponto que de fato manda
+   * no layout, e a alternativa era trocar o mat-sidenav por um grid proprio.
+   *
+   * Em telas estreitas o drawer fica sobreposto e a margem tem de ser zero;
+   * ali devolvemos o controle ao Material limpando o que escrevemos.
+   */
+  private ajustarMargemDoConteudo(): void {
+    const conteudo = this.host.nativeElement.querySelector<HTMLElement>('mat-sidenav-content');
+    if (!conteudo) return;
+
+    if (this.isMobile) {
+      conteudo.style.removeProperty('margin-left');
+      return;
+    }
+
+    // Nao medimos a trilha: medir exigiria esperar o CSS aplicar a largura nova,
+    // e errar o frame devolve a faixa morta. A largura ja esta nos tokens, e
+    // quem resolve `var()` e o proprio CSS -- sem timing envolvido.
+    conteudo.style.marginLeft = this.rail ? 'var(--side-w-collapsed)' : 'var(--side-w)';
   }
 
   closeOnMobile(): void {
