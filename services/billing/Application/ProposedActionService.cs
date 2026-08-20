@@ -61,7 +61,7 @@ public sealed class ProposedActionService(
             clock.GetUtcNow().Add(Validity));
 
         var encoded = Encode(payload);
-        return new ProposedActionResponse(kind.ToString(), items, null, payload.ExpiresAt, encoded);
+        return new ProposedActionResponse(kind.ToString(), items, [], payload.ExpiresAt, encoded);
     }
 
     /// <summary>
@@ -70,7 +70,36 @@ public sealed class ProposedActionService(
     /// os limites de <c>CreateProductRequest</c> no Inventory, e a garantia real
     /// continua sendo a confirmação humana (INV-24).
     /// </summary>
-    public ProposedActionResponse ProposeProduct(ProposedProduct product)
+    public ProposedActionResponse ProposeProducts(IReadOnlyList<ProposedProduct> products)
+    {
+        if (products.Count is < 1 or > 20)
+            throw new DomainValidationException("Proponha entre 1 e 20 produtos por vez.");
+
+        var saneados = products.Select(Sanear).ToList();
+
+        // Código repetido na mesma proposta criaria o primeiro e falharia no
+        // segundo, deixando metade cadastrada — melhor recusar antes.
+        var duplicado = saneados
+            .GroupBy(product => product.Code, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicado is not null)
+            throw new DomainValidationException($"O código {duplicado.Key} aparece mais de uma vez na proposta.");
+
+        var payload = new ProposedActionPayload(
+            ProposedActionKind.CreateProduct,
+            [],
+            saneados,
+            clock.GetUtcNow().Add(Validity));
+
+        return new ProposedActionResponse(
+            ProposedActionKind.CreateProduct.ToString(),
+            [],
+            saneados,
+            payload.ExpiresAt,
+            Encode(payload));
+    }
+
+    private static ProposedProduct Sanear(ProposedProduct product)
     {
         var code = product.Code?.Trim() ?? string.Empty;
         var description = product.Description?.Trim() ?? string.Empty;
@@ -80,21 +109,9 @@ public sealed class ProposedActionService(
         if (description.Length is < 1 or > 200)
             throw new DomainValidationException("A descrição do produto deve ter entre 1 e 200 caracteres.");
         if (product.Balance is < 0 or > 1_000_000)
-            throw new DomainValidationException("Saldo inicial inválido para o produto.");
+            throw new DomainValidationException($"Saldo inicial inválido para o produto {code}.");
 
-        var saneado = new ProposedProduct(code, description, product.Balance, product.TracksStock);
-        var payload = new ProposedActionPayload(
-            ProposedActionKind.CreateProduct,
-            [],
-            saneado,
-            clock.GetUtcNow().Add(Validity));
-
-        return new ProposedActionResponse(
-            ProposedActionKind.CreateProduct.ToString(),
-            [],
-            saneado,
-            payload.ExpiresAt,
-            Encode(payload));
+        return new ProposedProduct(code, description, product.Balance, product.TracksStock);
     }
 
     /// <summary>Executa a ação apenas se a assinatura e o prazo conferirem.</summary>
@@ -111,21 +128,41 @@ public sealed class ProposedActionService(
 
         if (payload.Kind == ProposedActionKind.CreateProduct)
         {
-            var proposto = payload.Product
-                ?? throw new DomainValidationException("A ação proposta não descreve um produto.");
+            if (payload.Products is not { Count: > 0 } propostos)
+                throw new DomainValidationException("A ação proposta não descreve produto nenhum.");
 
             // Produto é domínio do Inventory (INV-02): criamos pela API dele, nunca
             // escrevendo no banco do outro serviço (INV-05).
-            var criado = await inventory.CreateProductAsync(
-                proposto.Code,
-                proposto.Description,
-                proposto.Balance,
-                proposto.TracksStock,
-                cancellationToken);
+            //
+            // Não há transação entre serviços: se o terceiro de cinco falhar, os
+            // dois primeiros ficam criados. Em vez de fingir atomicidade, o erro
+            // diz quantos entraram, para a pessoa saber o que sobrou por fazer.
+            var criados = new List<Guid>(propostos.Count);
+            foreach (var proposto in propostos)
+            {
+                try
+                {
+                    var criado = await inventory.CreateProductAsync(
+                        proposto.Code,
+                        proposto.Description,
+                        proposto.Balance,
+                        proposto.TracksStock,
+                        cancellationToken);
+                    criados.Add(criado.Id);
+                }
+                catch (Exception erro) when (erro is ConflictException or DomainValidationException)
+                {
+                    throw new ConflictException(
+                        "PARTIAL_PRODUCT_CREATION",
+                        criados.Count == 0
+                            ? $"Nenhum produto foi criado: {erro.Message}"
+                            : $"{criados.Count} de {propostos.Count} produtos foram criados; parou em {proposto.Code}: {erro.Message}");
+                }
+            }
 
             return new ProposedActionResultResponse(
-                criado.Id,
-                0,
+                criados[0],
+                criados.Count,
                 "ProductCreated",
                 false,
                 httpContext.ActingUserName());
@@ -232,6 +269,6 @@ public sealed class ProposedActionService(
     private sealed record ProposedActionPayload(
         ProposedActionKind Kind,
         IReadOnlyList<ProposedItem> Items,
-        ProposedProduct? Product,
+        IReadOnlyList<ProposedProduct>? Products,
         DateTimeOffset ExpiresAt);
 }

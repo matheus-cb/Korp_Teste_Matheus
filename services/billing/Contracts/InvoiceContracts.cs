@@ -120,7 +120,7 @@ public sealed record ProposedProduct(string Code, string Description, int Balanc
 public sealed record ProposedActionResponse(
     string Kind,
     IReadOnlyList<ProposedItem> Items,
-    ProposedProduct? Product,
+    IReadOnlyList<ProposedProduct> Products,
     DateTimeOffset ExpiresAt,
     /// <summary>Assinado pelo servidor: sem ele a execução é recusada.</summary>
     string Token);

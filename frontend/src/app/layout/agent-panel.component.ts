@@ -113,6 +113,29 @@ const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
                 </div>
               }
 
+              @if (turn.action?.products?.length && !turn.done) {
+                <div class="draft">
+                  <div class="draft-head">Produtos a cadastrar — não salvos</div>
+                  @for (product of turn.action!.products; track product.code) {
+                    <div class="draft-row">
+                      <span class="draft-name">{{ product.code }} — {{ product.description }}</span>
+                      <b>{{ product.balance }}</b>
+                    </div>
+                  }
+                  <div class="draft-actions">
+                    <button type="button" class="nf-btn" (click)="discard(turn)">Descartar</button>
+                    <button
+                      type="button"
+                      class="nf-btn nf-btn--primary"
+                      [disabled]="confirming"
+                      (click)="createInvoice(turn)"
+                    >
+                      {{ confirming ? 'Cadastrando…' : 'Cadastrar' }}
+                    </button>
+                  </div>
+                </div>
+              }
+
               @if (turn.draft?.unresolvedItems?.length) {
                 <ul class="unresolved">
                   @for (item of turn.draft!.unresolvedItems; track $index) {
@@ -349,15 +372,15 @@ export class AgentPanelComponent {
       )
       .subscribe({
         next: (result) => {
-          this.conversation.replace(turn, {
-            ...turn,
-            text: `Nota ${result.number} criada e aberta. Confira e feche quando quiser.`,
-            action: undefined,
-            done: true,
-          });
-          this.notification.success('Nota criada', `A nota ${result.number} está aberta.`);
+          const produtos = turn.action?.products?.length ?? 0;
+          const texto = produtos
+            ? `${produtos} produto(s) cadastrado(s).`
+            : `Nota ${result.number} criada e aberta. Confira e feche quando quiser.`;
+
+          this.conversation.replace(turn, { ...turn, text: texto, action: undefined, done: true });
+          this.notification.success(produtos ? 'Produtos cadastrados' : 'Nota criada', texto);
           this.closed.emit();
-          void this.router.navigate(['/notas', result.invoiceId]);
+          void this.router.navigate(produtos ? ['/produtos'] : ['/notas', result.invoiceId]);
         },
         error: (error: unknown) => (this.error = this.apiError.from(error)),
       });
