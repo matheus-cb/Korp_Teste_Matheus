@@ -112,16 +112,18 @@ app.MapProposedActionEndpoints();
 app.MapAiEndpoints();
 
 if (builder.Configuration.GetValue("Database:MigrateOnStartup", true))
-    await ApplyMigrationsAsync(app.Services);
+    await ApplyMigrationsAsync(app.Services, builder.Configuration.GetValue("Seed:Password", "notaflow123"));
 
 await app.RunAsync();
 
 /// <summary>
-/// Usuários de demonstração. As credenciais são públicas de propósito: este é
-/// um ambiente demonstrativo e o avaliador precisa conseguir entrar. Num
-/// sistema real viriam de provisionamento, nunca do código.
+/// Usuários de demonstração. A senha padrão é pública de propósito: em ambiente
+/// local e no CI o avaliador precisa conseguir entrar. Fora disso ela vem de
+/// <c>Seed:Password</c> (variável <c>Seed__Password</c>), porque uma instância
+/// alcançável pela internet não pode nascer com credencial conhecida.
+/// Num sistema real os usuários viriam de provisionamento, nunca do código.
 /// </summary>
-static async Task SeedUsersAsync(BillingDbContext db)
+static async Task SeedUsersAsync(BillingDbContext db, string seedPassword)
 {
     if (await db.Users.AnyAsync())
     {
@@ -129,12 +131,12 @@ static async Task SeedUsersAsync(BillingDbContext db)
     }
 
     var now = TimeProvider.System.GetUtcNow();
-    db.Users.Add(AppUser.Create("operador", "Operador de Faturamento", "notaflow123", now));
-    db.Users.Add(AppUser.Create("supervisor", "Supervisor de Estoque", "notaflow123", now));
+    db.Users.Add(AppUser.Create("operador", "Operador de Faturamento", seedPassword, now));
+    db.Users.Add(AppUser.Create("supervisor", "Supervisor de Estoque", seedPassword, now));
     await db.SaveChangesAsync();
 }
 
-static async Task ApplyMigrationsAsync(IServiceProvider services)
+static async Task ApplyMigrationsAsync(IServiceProvider services, string seedPassword)
 {
     for (var attempt = 1; attempt <= 10; attempt++)
     {
@@ -144,7 +146,7 @@ static async Task ApplyMigrationsAsync(IServiceProvider services)
             var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<BillingDbContext>>();
             await using var db = await factory.CreateDbContextAsync();
             await db.Database.MigrateAsync();
-            await SeedUsersAsync(db);
+            await SeedUsersAsync(db, seedPassword);
             return;
         }
         catch when (attempt < 10)
