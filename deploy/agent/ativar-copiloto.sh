@@ -2,24 +2,48 @@
 # Liga o Copiloto sobre a ponte, em um passo. Pede o token com digitacao
 # oculta: ele nunca aparece no terminal nem no historico do shell.
 #
-# Uso:  ssh -t hg-vps1 'bash -s' < deploy/agent/ativar-copiloto.sh
+# Uso:  scp deploy/agent/ativar-copiloto.sh hg-vps1:/tmp/
+#       ssh -t hg-vps1 'bash /tmp/ativar-copiloto.sh'
+#
+# Rode o arquivo JA na VPS. Com `bash -s' < arquivo`, o stdin do bash e o
+# proprio script, e o `read` abaixo consome uma linha dele em vez de esperar
+# voce digitar -- grava um token vazio sem reclamar.
 set -uo pipefail
 
-if [ ! -s /etc/notaflow-agent.env ]; then
+# Checar o VALOR, nao o tamanho do arquivo: um arquivo com
+# "CLAUDE_CODE_OAUTH_TOKEN=" e nada depois tem 25 bytes e passaria por -s.
+ATUAL=$(grep -E '^(CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY)=' /etc/notaflow-agent.env 2>/dev/null | cut -d= -f2-)
+if [ -z "${ATUAL:-}" ]; then
     printf 'Cole o token do Claude Code (claude setup-token) e Enter: '
     read -rs TOKEN
     echo
-    if [ -z "$TOKEN" ]; then echo "[!] token vazio; nada foi alterado"; exit 1; fi
+    if [ -z "$TOKEN" ]; then
+        echo "[!] token vazio; nada foi alterado."
+        echo "    Se voce colou e nada apareceu, e esperado: a digitacao e oculta."
+        echo "    Se mesmo assim ficou vazio, rode o script direto na VPS,"
+        echo "    nao por 'bash -s' com redirecionamento de arquivo."
+        exit 1
+    fi
+    case "$TOKEN" in
+        sk-ant-*) ;;
+        *) echo "[!] isso nao parece um token (esperado comecar com sk-ant-)"; exit 1 ;;
+    esac
     umask 077
     printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "$TOKEN" > /etc/notaflow-agent.env
-    chmod 640 /etc/notaflow-agent.env
     chown root:nfagent /etc/notaflow-agent.env
+    chmod 640 /etc/notaflow-agent.env
     unset TOKEN
     echo "[+] credencial gravada"
 else
-    echo "[=] credencial ja existe"
+    echo "[=] credencial ja presente"
 fi
 
+# A ponte roda como nfagent; 600 root:root deixaria o servico sem conseguir ler.
+chown root:nfagent /etc/notaflow-agent.env
+chmod 640 /etc/notaflow-agent.env
+if ! runuser -u nfagent -- test -r /etc/notaflow-agent.env; then
+    echo "[!] nfagent nao consegue ler a credencial"; exit 1
+fi
 echo "[*] subindo a ponte..."
 systemctl restart notaflow-bridge.service
 sleep 3
