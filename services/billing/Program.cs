@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.RateLimiting;
 using Billing.Api.Api;
 using Billing.Api.Application;
@@ -94,9 +96,17 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // Particionar por SESSAO, nao por IP. Atras de um proxy o IP de conexao e
+    // sempre o do proxy, entao todo mundo caia no mesmo balde e cinco chamadas
+    // de qualquer pessoa travavam o assistente para todas -- mais facil de
+    // acontecer agora que ele conversa, e nao so monta um rascunho.
+    //
+    // A chave sai do token de sessao, e nao do usuario resolvido, porque o
+    // UserContextMiddleware roda depois do limitador. O token vai hasheado: ele
+    // e credencial, e chave de particao fica viva em memoria.
     options.AddPolicy(AiEndpoints.RateLimitPolicy, context =>
         RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            ParticaoDoChamador(context),
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 5,
@@ -179,6 +189,28 @@ static async Task ApplyMigrationsAsync(IServiceProvider services, string seedPas
             await Task.Delay(TimeSpan.FromSeconds(Math.Min(10, attempt * 2)));
         }
     }
+}
+
+/// <summary>
+/// Chave de particao do limitador: sessao quando houver, IP quando anonimo.
+/// </summary>
+static string ParticaoDoChamador(HttpContext context)
+{
+    var cabecalho = context.Request.Headers.Authorization.ToString();
+    const string prefixo = "Bearer ";
+    if (cabecalho.StartsWith(prefixo, StringComparison.OrdinalIgnoreCase))
+    {
+        var token = cabecalho[prefixo.Length..].Trim();
+        if (token.Length > 0)
+        {
+            var resumo = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+            return string.Concat("s:", Convert.ToHexString(resumo.AsSpan(0, 8)));
+        }
+    }
+
+    // Sem sessao sobra o IP. Nao e ideal atras do proxy, mas rota autenticada
+    // so chega aqui sem token quando a chamada ja vai ser recusada adiante.
+    return string.Concat("ip:", context.Connection.RemoteIpAddress?.ToString() ?? "desconhecido");
 }
 
 public partial class Program;

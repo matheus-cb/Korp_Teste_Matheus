@@ -13,7 +13,8 @@ public sealed record AssistantHistoryTurn(bool FromUser, string Text);
 
 public sealed record AssistantClientRequest(
     string Text,
-    IReadOnlyList<AssistantHistoryTurn> History);
+    IReadOnlyList<AssistantHistoryTurn> History,
+    string? Screen);
 
 /// <summary>
 /// Resposta do provedor. <see cref="ProposesInvoice"/> distingue "montei um
@@ -52,8 +53,33 @@ public sealed class AssistantService(
     TimeProvider clock,
     ILogger<AssistantService> logger)
 {
+    /// <summary>
+    /// Telas conhecidas. Lista fechada de proposito: o cliente nao escolhe o
+    /// texto que entra no prompt, so aponta qual das telas conhecidas esta aberta.
+    /// </summary>
+    private static readonly Dictionary<string, string> Telas = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["visao-geral"] = "a visão geral",
+        ["produtos"] = "a lista de produtos",
+        ["notas"] = "a lista de notas",
+        ["nota"] = "uma nota específica",
+        ["movimentacoes"] = "o extrato de movimentações",
+    };
+
     private const int MaxHistoryTurns = 10;
     private const int MaxTextLength = 2000;
+
+    private static string? DescreverTela(AssistantScreen? screen)
+    {
+        if (screen?.Route is null || !Telas.TryGetValue(screen.Route, out var descricao))
+            return null;
+
+        // O id so entra se for UUID: qualquer outra coisa seria texto livre do
+        // cliente indo direto para o prompt.
+        return Guid.TryParse(screen.EntityId, out var id)
+            ? $"{descricao} (id {id})"
+            : descricao;
+    }
 
     public async Task<AssistantMessageResponse> RespondAsync(
         AssistantMessageRequest request,
@@ -80,6 +106,8 @@ public sealed class AssistantService(
                 turn.Text.Length > MaxTextLength ? turn.Text[..MaxTextLength] : turn.Text))
             .ToList();
 
+        var tela = DescreverTela(request.Screen);
+
         var run = AiDraftRun.Start(client.ModelName, options.Value.PromptVersion, clock.GetUtcNow());
         db.AiDraftRuns.Add(run);
         await db.SaveChangesAsync(cancellationToken);
@@ -87,7 +115,9 @@ public sealed class AssistantService(
 
         try
         {
-            var reply = await client.RespondAsync(new AssistantClientRequest(text, history), cancellationToken);
+            var reply = await client.RespondAsync(
+                new AssistantClientRequest(text, history, tela),
+                cancellationToken);
 
             ProposedActionResponse? action = null;
             if (reply.ProposedProduct is { } produto)

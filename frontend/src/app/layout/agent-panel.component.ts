@@ -12,6 +12,7 @@ import { ApiErrorService } from '../core/services/api-error.service';
 import type { AssistantTurn } from '../core/services/assistant-conversation.service';
 import { AssistantConversationService } from '../core/services/assistant-conversation.service';
 import { AssistantService } from '../core/services/assistant.service';
+import { CurrentScreenService } from '../core/services/current-screen.service';
 import { DraftTransferService } from '../core/services/draft-transfer.service';
 import { NotificationService } from '../core/services/notification.service';
 import { InlineAlertComponent } from '../shared/inline-alert.component';
@@ -201,6 +202,7 @@ export class AgentPanelComponent {
   private readonly aiDraft = inject(AiDraftService);
   private readonly assistant = inject(AssistantService);
   private readonly conversation = inject(AssistantConversationService);
+  private readonly screen = inject(CurrentScreenService);
   private readonly apiError = inject(ApiErrorService);
   private readonly transfer = inject(DraftTransferService);
   private readonly notification = inject(NotificationService);
@@ -280,7 +282,7 @@ export class AgentPanelComponent {
     }
 
     this.assistant
-      .send(text, history)
+      .send(text, history, this.screen.current())
       .pipe(
         finalize(() => (this.loading = false)),
         takeUntilDestroyed(this.destroyRef),

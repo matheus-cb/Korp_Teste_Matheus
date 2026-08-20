@@ -4,13 +4,25 @@ namespace Billing.Api.Contracts;
 public sealed record AssistantTurn(string Role, string Text);
 
 /// <summary>
-/// Pedido ao assistente: a mensagem nova mais os turnos anteriores. A conversa
-/// é mantida pelo cliente e reenviada — o servidor não guarda sessão, do mesmo
-/// jeito que a Messages API não guarda.
+/// Onde a pessoa está quando pergunta. Serve para o assistente entender
+/// "quantos desse eu tenho?" sem exigir que ela repita o código.
+/// <para>
+/// É DADO, e o servidor trata como tal: o rótulo da tela é normalizado contra
+/// uma lista fechada e o id só passa se for UUID. Texto livre vindo do cliente
+/// entraria no prompt sem controle nenhum.
+/// </para>
+/// </summary>
+public sealed record AssistantScreen(string? Route, string? EntityId);
+
+/// <summary>
+/// Pedido ao assistente: a mensagem nova, os turnos anteriores e a tela aberta.
+/// A conversa é mantida pelo cliente e reenviada — o servidor não guarda sessão,
+/// do mesmo jeito que a Messages API não guarda.
 /// </summary>
 public sealed record AssistantMessageRequest(
     string? Text,
-    IReadOnlyList<AssistantTurn>? History);
+    IReadOnlyList<AssistantTurn>? History,
+    AssistantScreen? Screen);
 
 /// <summary>
 /// Resposta do assistente. Três desfechos possíveis, e eles não são exclusivos

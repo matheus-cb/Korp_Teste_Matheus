@@ -1,5 +1,15 @@
 import type { AiDraftItem, AiDraftStep, UnresolvedDraftItem } from './ai-draft.model';
 
+/**
+ * Tela aberta quando a pessoa perguntou. O servidor normaliza contra uma lista
+ * fechada — mandar daqui é conveniência, não é o que decide o que entra no
+ * prompt.
+ */
+export interface AssistantScreen {
+  route: string | null;
+  entityId: string | null;
+}
+
 export interface ProposedActionItem {
   productId: string;
   code: string;
