@@ -52,11 +52,13 @@ import { AuthService } from '../../core/services/auth.service';
           </button>
         </form>
 
-        <footer class="demo">
-          <strong>Ambiente demonstrativo</strong>
-          <span>operador / notaflow123</span>
-          <span>supervisor / notaflow123</span>
-        </footer>
+        @if (mostrarCredenciaisDemo) {
+          <footer class="demo">
+            <strong>Ambiente demonstrativo</strong>
+            <span>operador / notaflow123</span>
+            <span>supervisor / notaflow123</span>
+          </footer>
+        }
       </section>
     </main>
   `,
@@ -154,6 +156,17 @@ import { AuthService } from '../../core/services/auth.service';
   changeDetection: ChangeDetectionStrategy.Default,
 })
 export class LoginPage {
+  /**
+   * A dica de credenciais serve ao avaliador rodando o projeto na propria
+   * maquina. Numa instancia alcancavel pela rede ela vira o contrario: entrega
+   * usuarios validos e anuncia uma senha que ali nem e mais a verdadeira,
+   * porque o seeding passa a usar Seed:Password. O corte e por hostname, e nao
+   * por environment.production, porque o Dockerfile do compose local tambem
+   * builda em modo producao -- e ali a dica ainda faz sentido.
+   */
+  protected readonly mostrarCredenciaisDemo =
+    typeof location !== 'undefined' && ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+
   private readonly formBuilder = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
