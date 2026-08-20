@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -96,8 +97,8 @@ public sealed class ClaudeBridgeClient(
         transcricao.AppendLine("### Ferramentas disponíveis (somente leitura)");
         foreach (var tool in session.Tools)
         {
-            transcricao.AppendLine($"- {tool.Name}: {tool.Description}");
-            transcricao.AppendLine($"  schema: {tool.InputSchema.GetRawText()}");
+            transcricao.AppendLine(CultureInfo.InvariantCulture, $"- {tool.Name}: {tool.Description}");
+            transcricao.AppendLine(CultureInfo.InvariantCulture, $"  schema: {tool.InputSchema.GetRawText()}");
         }
 
         transcricao.AppendLine();
@@ -132,7 +133,7 @@ public sealed class ClaudeBridgeClient(
                 ColherProdutos(resultado.Content, catalogo);
 
                 transcricao.AppendLine();
-                transcricao.AppendLine($"### Resultado de {nome}");
+                transcricao.AppendLine(CultureInfo.InvariantCulture, $"### Resultado de {nome}");
                 transcricao.AppendLine(resultado.Content.GetRawText());
                 continue;
             }
