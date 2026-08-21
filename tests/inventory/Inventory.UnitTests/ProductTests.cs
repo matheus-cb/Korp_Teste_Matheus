@@ -50,6 +50,32 @@ public sealed class ProductTests
     }
 
     [Fact]
+    public void CreateAndUpdateMetadataAppendAuditEvents()
+    {
+        var createdAt = new DateTimeOffset(2026, 8, 21, 10, 0, 0, TimeSpan.Zero);
+        var editedAt = createdAt.AddMinutes(5);
+        var product = Product.Create("ABC", "Product", 2, createdAt, true, "Ana");
+        var version = product.Version;
+
+        product.UpdateMetadata("ABC", "Updated product", true, version, editedAt, "Bruno");
+
+        Assert.Collection(
+            product.AuditEvents,
+            created =>
+            {
+                Assert.Equal("Created", created.Type);
+                Assert.Equal("Ana", created.ActorName);
+                Assert.Equal(createdAt, created.OccurredAt);
+            },
+            edited =>
+            {
+                Assert.Equal("Edited", edited.Type);
+                Assert.Equal("Bruno", edited.ActorName);
+                Assert.Equal(editedAt, edited.OccurredAt);
+            });
+    }
+
+    [Fact]
     public void UpdateMetadataCannotDisableStockControlWithBalance()
     {
         var product = Product.Create("ABC", "Product", 1, DateTimeOffset.UtcNow);

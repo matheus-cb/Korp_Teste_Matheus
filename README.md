@@ -4,6 +4,8 @@ Sistema demonstrativo de produtos e emissão de notas. O NotaFlow dá prioridade
 
 > As notas e PDFs deste projeto são demonstrativos e não possuem validade fiscal.
 
+Os cadastros de produto mantêm uma trilha imutável de criação e edições de metadados, com pessoa responsável e data/hora. Ajustes de saldo permanecem fora desse formulário e seguem o fluxo de estoque auditável.
+
 ## Primeiros cinco minutos
 
 Pré-requisitos: Docker Desktop com WSL2 e Git.

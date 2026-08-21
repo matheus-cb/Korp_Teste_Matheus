@@ -23,7 +23,13 @@ public sealed record ProductResponse(
     string CreatedBy,
     DateTimeOffset UpdatedAt,
     string UpdatedBy,
-    Guid Version);
+    Guid Version,
+    IReadOnlyList<ProductAuditEventResponse>? AuditEvents = null);
+
+public sealed record ProductAuditEventResponse(
+    string Type,
+    string ActorName,
+    DateTimeOffset OccurredAt);
 
 public sealed record ProductPageResponse(
     IReadOnlyList<ProductResponse> Items,

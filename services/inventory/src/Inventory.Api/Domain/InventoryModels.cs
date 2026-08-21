@@ -45,6 +45,7 @@ public sealed class Product
     public DateTimeOffset UpdatedAt { get; private set; }
     public string UpdatedBy { get; private set; } = "sistema";
     public Guid Version { get; private set; }
+    public List<ProductAuditEvent> AuditEvents { get; private set; } = [];
 
     public static Product Create(
         string code,
@@ -76,7 +77,7 @@ public sealed class Product
         // impressão de que existe estoque a ser consumido.
         var effectiveBalance = tracksStock ? balance : 0;
 
-        return new Product(
+        var product = new Product(
             Guid.NewGuid(),
             normalizedCode,
             normalizedDescription,
@@ -84,6 +85,8 @@ public sealed class Product
             tracksStock,
             createdAt,
             string.IsNullOrWhiteSpace(createdBy) ? "sistema" : createdBy.Trim());
+        product.AuditEvents.Add(ProductAuditEvent.Create(product.Id, "Created", product.CreatedBy, product.CreatedAt));
+        return product;
     }
 
     public void UpdateMetadata(string code, string description, bool tracksStock, Guid expectedVersion, DateTimeOffset now, string updatedBy)
@@ -105,6 +108,7 @@ public sealed class Product
         UpdatedAt = now;
         UpdatedBy = string.IsNullOrWhiteSpace(updatedBy) ? "sistema" : updatedBy.Trim();
         Version = Guid.NewGuid();
+        AuditEvents.Add(ProductAuditEvent.Create(Id, "Edited", UpdatedBy, UpdatedAt));
     }
 
     public void Debit(int quantity)
@@ -138,6 +142,29 @@ public enum StockDebitState
     Pending,
     Completed,
     Rejected
+}
+
+/// <summary>Trilha imutável de autoria do cadastro e das edições de metadados.</summary>
+public sealed class ProductAuditEvent
+{
+    private ProductAuditEvent()
+    {
+    }
+
+    public Guid Id { get; private set; }
+    public Guid ProductId { get; private set; }
+    public string Type { get; private set; } = string.Empty;
+    public string ActorName { get; private set; } = "sistema";
+    public DateTimeOffset OccurredAt { get; private set; }
+
+    public static ProductAuditEvent Create(Guid productId, string type, string actorName, DateTimeOffset occurredAt) => new()
+    {
+        Id = Guid.NewGuid(),
+        ProductId = productId,
+        Type = type,
+        ActorName = string.IsNullOrWhiteSpace(actorName) ? "sistema" : actorName.Trim(),
+        OccurredAt = occurredAt
+    };
 }
 
 public sealed class StockDebitOperation

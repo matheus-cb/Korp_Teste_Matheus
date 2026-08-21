@@ -10,6 +10,13 @@ export interface Product {
   updatedAt?: string;
   updatedBy?: string;
   version?: string;
+  auditEvents?: ProductAuditEvent[];
+}
+
+export interface ProductAuditEvent {
+  type: 'Created' | 'Edited';
+  actorName: string;
+  occurredAt: string;
 }
 
 export interface CreateProductRequest {

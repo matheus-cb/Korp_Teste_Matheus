@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -17,7 +18,7 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
  */
 @Component({
   selector: 'app-product-form-dialog',
-  imports: [InlineAlertComponent, ModalShellComponent, ReactiveFormsModule],
+  imports: [DatePipe, InlineAlertComponent, ModalShellComponent, ReactiveFormsModule],
   template: `
     <app-modal-shell
       [title]="editing ? 'Editar produto' : 'Novo produto'"
@@ -97,6 +98,31 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
         }
         @if (editing) {
           <p class="nf-hint">O saldo não é editado aqui: alterações físicas exigem um ajuste auditável.</p>
+
+          <section class="audit-summary" aria-label="Dados de auditoria">
+            <div>
+              <span>Criado em</span>
+              <strong>{{ product!.createdAt | date: 'dd/MM/yyyy HH:mm' }} · {{ product!.createdBy ?? 'sistema' }}</strong>
+            </div>
+            <div>
+              <span>Última edição</span>
+              <strong>{{ product!.updatedAt | date: 'dd/MM/yyyy HH:mm' }} · {{ product!.updatedBy ?? product!.createdBy ?? 'sistema' }}</strong>
+            </div>
+          </section>
+
+          @if (product!.auditEvents?.length) {
+            <section class="audit-trail" aria-labelledby="product-audit-title">
+              <h3 id="product-audit-title">Histórico</h3>
+              <ul>
+                @for (event of product!.auditEvents!; track event.occurredAt + event.type) {
+                  <li>
+                    <strong>{{ auditLabel(event.type) }}</strong>
+                    <span>{{ event.actorName }} · {{ event.occurredAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
         }
 
         @if (error) {
@@ -135,6 +161,41 @@ import { ModalShellComponent } from '../../shared/modal-shell.component';
     .checkbox-field {
       gap: var(--sp-1);
     }
+
+    .audit-summary {
+      display: grid;
+      gap: var(--sp-2);
+      padding: var(--sp-3);
+      border: 1px solid var(--n-200);
+      border-radius: var(--radius-md);
+      background: var(--n-50);
+    }
+
+    .audit-summary div,
+    .audit-trail li {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--sp-3);
+      font-size: var(--fs-sm);
+    }
+
+    .audit-summary span,
+    .audit-trail span {
+      color: var(--n-600);
+    }
+
+    .audit-trail h3 {
+      margin: 0 0 var(--sp-2);
+      font-size: var(--fs-md);
+    }
+
+    .audit-trail ul {
+      display: grid;
+      gap: var(--sp-2);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.Default,
 })
@@ -146,6 +207,7 @@ export class ProductFormDialog {
   private readonly notification = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly data = inject<{ product?: Product } | null>(MAT_DIALOG_DATA, { optional: true });
+  readonly product = this.data?.product;
   readonly editing = !!this.data?.product;
 
   readonly form = this.formBuilder.nonNullable.group({
@@ -183,6 +245,10 @@ export class ProductFormDialog {
 
   normalizeCode(): void {
     this.form.controls.code.setValue(this.form.controls.code.value.trim().toUpperCase());
+  }
+
+  auditLabel(type: 'Created' | 'Edited'): string {
+    return type === 'Created' ? 'Criado' : 'Editado';
   }
 
   submit(): void {

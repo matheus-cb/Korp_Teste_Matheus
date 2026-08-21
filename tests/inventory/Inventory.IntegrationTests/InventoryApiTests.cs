@@ -38,6 +38,31 @@ public sealed class InventoryApiTests(InventoryApiFixture fixture)
     }
 
     [Fact]
+    public async Task ProductHistoryRecordsCreationAndMetadataEdits()
+    {
+        var created = await CreateProductAsync(NewCode("AUD"), 9);
+
+        using var updateRequest = new HttpRequestMessage(HttpMethod.Put, $"/api/internal/products/{created.Id}")
+        {
+            Content = JsonContent.Create(new UpdateProductRequest(created.Code, "Updated product", true))
+        };
+        updateRequest.Headers.Add("X-Notaflow-Actor", "Product Editor");
+        updateRequest.Headers.TryAddWithoutValidation("If-Match", $"\"{created.Version}\"");
+        using var updateResponse = await fixture.Client.SendAsync(updateRequest);
+        updateResponse.EnsureSuccessStatusCode();
+
+        var updated = await GetProductAsync(created.Id);
+
+        Assert.NotNull(updated.AuditEvents);
+        Assert.Equal(2, updated.AuditEvents.Count);
+        Assert.Contains(updated.AuditEvents, auditEvent =>
+            auditEvent.Type == "Created" && auditEvent.ActorName == "Integration Test");
+        Assert.Contains(updated.AuditEvents, auditEvent =>
+            auditEvent.Type == "Edited" && auditEvent.ActorName == "Product Editor");
+        Assert.All(updated.AuditEvents, auditEvent => Assert.NotEqual(default, auditEvent.OccurredAt));
+    }
+
+    [Fact]
     public async Task ProductWithoutStockControlIsNeverRejectedAndKeepsBalanceUntouched()
     {
         var service = await CreateProductAsync(NewCode("SVC"), 0, tracksStock: false);
