@@ -137,18 +137,30 @@ export class ProductsPage {
     },
     { field: 'description', headerName: 'Descrição', flex: 1, minWidth: 200 },
     {
-      field: 'createdAt',
-      headerName: 'Criado em',
-      width: 185,
-      valueFormatter: (params: ValueFormatterParams) =>
-        params.node?.rowPinned ? '' : this.formatAudit(params.data as Product | undefined, 'created'),
+      field: 'createdBy',
+      headerName: 'Criado por',
+      width: 170,
+      valueFormatter: (params) => (params.node?.rowPinned ? '' : (params.value ?? '—')),
     },
     {
-      colId: 'updatedAt',
-      headerName: 'Última alteração',
-      width: 220,
+      field: 'createdAt',
+      headerName: 'Data de criação',
+      width: 170,
       valueFormatter: (params: ValueFormatterParams) =>
-        params.node?.rowPinned ? '' : this.formatAudit(params.data as Product | undefined, 'updated'),
+        params.node?.rowPinned ? '' : this.formatDate(params.value),
+    },
+    {
+      field: 'updatedBy',
+      headerName: 'Alterado por',
+      width: 170,
+      valueFormatter: (params) => (params.node?.rowPinned ? '' : (params.value ?? '—')),
+    },
+    {
+      field: 'updatedAt',
+      headerName: 'Data de alteração',
+      width: 175,
+      valueFormatter: (params: ValueFormatterParams) =>
+        params.node?.rowPinned ? '' : this.formatDate(params.value),
     },
     {
       field: 'balance',
@@ -247,8 +259,10 @@ export class ProductsPage {
       [
         { header: 'Código', value: (product) => product.code },
         { header: 'Descrição', value: (product) => product.description },
-        { header: 'Criado em', value: (product) => this.formatAudit(product, 'created') },
-        { header: 'Última alteração', value: (product) => this.formatAudit(product, 'updated') },
+        { header: 'Criado por', value: (product) => product.createdBy ?? '—' },
+        { header: 'Data de criação', value: (product) => this.formatDate(product.createdAt) },
+        { header: 'Alterado por', value: (product) => product.updatedBy ?? '—' },
+        { header: 'Data de alteração', value: (product) => this.formatDate(product.updatedAt) },
         { header: 'Saldo', value: (product) => (product.tracksStock ? product.balance : '') },
         { header: 'Controla estoque', value: (product) => (product.tracksStock ? 'Sim' : 'Não') },
         { header: 'Situação', value: (product) => balanceState(product).label },
@@ -275,17 +289,8 @@ export class ProductsPage {
     this.openEditDialog(product);
   }
 
-  private formatAudit(product: Product | undefined, event: 'created' | 'updated'): string {
-    if (!product) return '';
-
-    const occurredAt = event === 'created' ? product.createdAt : product.updatedAt;
-    const actorName = event === 'created'
-      ? product.createdBy
-      : product.updatedBy ?? product.createdBy;
-    if (!occurredAt) return '—';
-
-    const date = this.datePipe.transform(occurredAt, 'dd/MM/yyyy HH:mm') ?? '';
-    return `${date} · ${actorName ?? 'sistema'}`;
+  private formatDate(value: string | undefined): string {
+    return value ? (this.datePipe.transform(value, 'dd/MM/yyyy HH:mm') ?? '—') : '—';
   }
 
   private openEditDialog(product: Product): void {
