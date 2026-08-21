@@ -9,7 +9,7 @@ O NotaFlow é uma aplicação Angular para cadastro de produtos, criação de no
 
 Cada serviço possui seu próprio PostgreSQL e suas próprias migrations. O Billing não acessa o banco do Inventory, nem o Inventory acessa o banco do Billing. A baixa de estoque é um comando REST interno, com transação local e `Idempotency-Key`; MCP é usado somente para consultas de contexto pelo assistente.
 
-O Inventory também guarda uma trilha imutável por produto: um evento de **criação** e outro a cada **edição de metadados**, sempre com usuário e data/hora. Produtos já existentes recebem o evento de criação durante a migration; não são inventadas edições históricas que não existiam no banco. O modal de edição consulta o detalhe do produto e apresenta essa trilha. Saldo não é alterado nesse fluxo.
+O Inventory também guarda uma trilha imutável por produto: um evento de **criação** e outro a cada **edição de metadados**, sempre com usuário e data/hora. Produtos já existentes recebem o evento de criação durante a migration; não são inventadas edições históricas que não existiam no banco. A tabela principal de Produtos apresenta criação e última alteração, com data/hora e responsável; o modal fica restrito à edição. Saldo não é alterado nesse fluxo.
 
 ## Angular: ciclo de vida e organização
 

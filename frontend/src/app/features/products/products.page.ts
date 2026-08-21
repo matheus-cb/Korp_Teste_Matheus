@@ -1,8 +1,9 @@
+import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
-import type { ColDef } from 'ag-grid-community';
+import type { ColDef, ValueFormatterParams } from 'ag-grid-community';
 import {
   Subject,
   catchError,
@@ -116,6 +117,7 @@ export class ProductsPage {
   private readonly exporter = inject(ExportService);
   private readonly dialog = inject(MatDialog);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly datePipe = new DatePipe('pt-BR');
   private readonly searchTerms = new Subject<string>();
   private readonly recarregar = new Subject<void>();
 
@@ -134,7 +136,20 @@ export class ProductsPage {
       valueFormatter: (params) => (params.node?.rowPinned ? 'Total em estoque' : params.value),
     },
     { field: 'description', headerName: 'Descrição', flex: 1, minWidth: 200 },
-    { field: 'updatedBy', headerName: 'Última edição', width: 170, valueFormatter: (params) => params.value ?? '—' },
+    {
+      field: 'createdAt',
+      headerName: 'Criado em',
+      width: 185,
+      valueFormatter: (params: ValueFormatterParams) =>
+        params.node?.rowPinned ? '' : this.formatAudit(params.data as Product | undefined, 'created'),
+    },
+    {
+      colId: 'updatedAt',
+      headerName: 'Última alteração',
+      width: 220,
+      valueFormatter: (params: ValueFormatterParams) =>
+        params.node?.rowPinned ? '' : this.formatAudit(params.data as Product | undefined, 'updated'),
+    },
     {
       field: 'balance',
       headerName: 'Saldo',
@@ -232,6 +247,8 @@ export class ProductsPage {
       [
         { header: 'Código', value: (product) => product.code },
         { header: 'Descrição', value: (product) => product.description },
+        { header: 'Criado em', value: (product) => this.formatAudit(product, 'created') },
+        { header: 'Última alteração', value: (product) => this.formatAudit(product, 'updated') },
         { header: 'Saldo', value: (product) => (product.tracksStock ? product.balance : '') },
         { header: 'Controla estoque', value: (product) => (product.tracksStock ? 'Sim' : 'Não') },
         { header: 'Situação', value: (product) => balanceState(product).label },
@@ -255,13 +272,20 @@ export class ProductsPage {
   }
 
   openEdit(product: Product): void {
-    this.productService
-      .getById(product.id)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (details) => this.openEditDialog(details),
-        error: (error: unknown) => (this.listError = this.apiError.from(error)),
-      });
+    this.openEditDialog(product);
+  }
+
+  private formatAudit(product: Product | undefined, event: 'created' | 'updated'): string {
+    if (!product) return '';
+
+    const occurredAt = event === 'created' ? product.createdAt : product.updatedAt;
+    const actorName = event === 'created'
+      ? product.createdBy
+      : product.updatedBy ?? product.createdBy;
+    if (!occurredAt) return '—';
+
+    const date = this.datePipe.transform(occurredAt, 'dd/MM/yyyy HH:mm') ?? '';
+    return `${date} · ${actorName ?? 'sistema'}`;
   }
 
   private openEditDialog(product: Product): void {
