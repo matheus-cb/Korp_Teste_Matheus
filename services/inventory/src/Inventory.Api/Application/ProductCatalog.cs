@@ -79,11 +79,17 @@ public sealed class ProductCatalog(
 
     public async Task<ProductResponse> UpdateAsync(Guid id, UpdateProductRequest request, Guid expectedVersion, string actorName, CancellationToken cancellationToken)
     {
-        var product = await database.Products.SingleOrDefaultAsync(x => x.Id == id, cancellationToken)
+        var product = await database.Products
+            .Include(product => product.AuditEvents)
+            .SingleOrDefaultAsync(product => product.Id == id, cancellationToken)
             ?? throw InventoryApiException.NotFound(ErrorCodes.ProductNotFound, $"Product '{id}' was not found.");
         try
         {
             product.UpdateMetadata(request.Code, request.Description, request.TracksStock, expectedVersion, timeProvider.GetUtcNow(), actorName);
+            // A entidade já existia no contexto. Registrar explicitamente o novo
+            // evento evita que uma coleção carregada seja tratada como atualização
+            // de um evento inexistente quando o change tracker detecta a inclusão.
+            database.ProductAuditEvents.Add(product.AuditEvents[^1]);
             await database.SaveChangesAsync(cancellationToken);
         }
         catch (InvalidOperationException exception) when (exception.Message == "PRODUCT_VERSION_CONFLICT")
@@ -105,18 +111,15 @@ public sealed class ProductCatalog(
         return ToResponse(product);
     }
 
-    public Task<ProductResponse?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-        database.Products
+    public async Task<ProductResponse?> GetAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var product = await database.Products
             .AsNoTracking()
-            .Where(product => product.Id == id)
-            .Select(product => new ProductResponse(
-                product.Id,
-                product.Code,
-                product.Description,
-                product.Balance,
-                product.TracksStock,
-                product.CreatedAt, product.CreatedBy, product.UpdatedAt, product.UpdatedBy, product.Version))
-            .SingleOrDefaultAsync(cancellationToken);
+            .Include(product => product.AuditEvents)
+            .SingleOrDefaultAsync(product => product.Id == id, cancellationToken);
+
+        return product is null ? null : ToResponse(product);
+    }
 
     public async Task<ProductPageResponse> SearchAsync(
         string? query,
@@ -221,7 +224,14 @@ public sealed class ProductCatalog(
             product.Description,
             product.Balance,
             product.TracksStock,
-            product.CreatedAt, product.CreatedBy, product.UpdatedAt, product.UpdatedBy, product.Version);
+            product.CreatedAt, product.CreatedBy, product.UpdatedAt, product.UpdatedBy, product.Version,
+            product.AuditEvents
+                .OrderByDescending(auditEvent => auditEvent.OccurredAt)
+                .Select(auditEvent => new ProductAuditEventResponse(
+                    auditEvent.Type,
+                    auditEvent.ActorName,
+                    auditEvent.OccurredAt))
+                .ToArray());
 
     private static string EscapeLikePattern(string value) =>
         value.Replace("\\", "\\\\", StringComparison.Ordinal)

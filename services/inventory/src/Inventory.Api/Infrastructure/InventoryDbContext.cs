@@ -7,12 +7,14 @@ namespace Inventory.Api.Infrastructure;
 public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> options) : DbContext(options)
 {
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductAuditEvent> ProductAuditEvents => Set<ProductAuditEvent>();
     public DbSet<StockDebitOperation> StockDebitOperations => Set<StockDebitOperation>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new ProductConfiguration());
+        modelBuilder.ApplyConfiguration(new ProductAuditEventConfiguration());
         modelBuilder.ApplyConfiguration(new StockDebitOperationConfiguration());
         modelBuilder.ApplyConfiguration(new StockMovementConfiguration());
     }
@@ -35,9 +37,26 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
             builder.Property(product => product.UpdatedAt).IsRequired();
             builder.Property(product => product.UpdatedBy).HasMaxLength(120).IsRequired().HasDefaultValue("sistema");
             builder.Property(product => product.Version).IsConcurrencyToken();
+            builder.HasMany(product => product.AuditEvents)
+                .WithOne()
+                .HasForeignKey(auditEvent => auditEvent.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
             builder.HasIndex(product => product.Code)
                 .IsUnique()
                 .HasDatabaseName("UX_Products_Code");
+        }
+    }
+
+    private sealed class ProductAuditEventConfiguration : IEntityTypeConfiguration<ProductAuditEvent>
+    {
+        public void Configure(EntityTypeBuilder<ProductAuditEvent> builder)
+        {
+            builder.ToTable("ProductAuditEvents");
+            builder.HasKey(auditEvent => auditEvent.Id);
+            builder.Property(auditEvent => auditEvent.Type).HasMaxLength(24).IsRequired();
+            builder.Property(auditEvent => auditEvent.ActorName).HasMaxLength(120).IsRequired();
+            builder.Property(auditEvent => auditEvent.OccurredAt).IsRequired();
+            builder.HasIndex(auditEvent => new { auditEvent.ProductId, auditEvent.OccurredAt });
         }
     }
 

@@ -38,6 +38,18 @@ internal sealed class InventoryDbContextModelSnapshot : ModelSnapshot
                 table.HasCheckConstraint("CK_Products_Balance", "\"Balance\" >= 0"));
         });
 
+        modelBuilder.Entity("Inventory.Api.Domain.ProductAuditEvent", entity =>
+        {
+            entity.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
+            entity.Property<string>("ActorName").IsRequired().HasMaxLength(120).HasColumnType("character varying(120)");
+            entity.Property<DateTimeOffset>("OccurredAt").HasColumnType("timestamp with time zone");
+            entity.Property<Guid>("ProductId").HasColumnType("uuid");
+            entity.Property<string>("Type").IsRequired().HasMaxLength(24).HasColumnType("character varying(24)");
+            entity.HasKey("Id");
+            entity.HasIndex("ProductId", "OccurredAt");
+            entity.ToTable("ProductAuditEvents", (string)null);
+        });
+
         modelBuilder.Entity("Inventory.Api.Domain.StockDebitOperation", entity =>
         {
             entity.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
@@ -76,6 +88,15 @@ internal sealed class InventoryDbContextModelSnapshot : ModelSnapshot
             });
         });
 
+        modelBuilder.Entity("Inventory.Api.Domain.ProductAuditEvent", entity =>
+        {
+            entity.HasOne("Inventory.Api.Domain.Product", null)
+                .WithMany("AuditEvents")
+                .HasForeignKey("ProductId")
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
+        });
+
         modelBuilder.Entity("Inventory.Api.Domain.StockMovement", entity =>
         {
             entity.HasOne("Inventory.Api.Domain.StockDebitOperation", "Operation")
@@ -94,6 +115,9 @@ internal sealed class InventoryDbContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("Inventory.Api.Domain.StockDebitOperation", entity =>
             entity.Navigation("Movements"));
+
+        modelBuilder.Entity("Inventory.Api.Domain.Product", entity =>
+            entity.Navigation("AuditEvents"));
 #pragma warning restore 612, 618
     }
 }

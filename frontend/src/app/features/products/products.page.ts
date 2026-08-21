@@ -255,6 +255,16 @@ export class ProductsPage {
   }
 
   openEdit(product: Product): void {
+    this.productService
+      .getById(product.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (details) => this.openEditDialog(details),
+        error: (error: unknown) => (this.listError = this.apiError.from(error)),
+      });
+  }
+
+  private openEditDialog(product: Product): void {
     this.dialog.open(ProductFormDialog, {
       width: 'var(--modal-sm)', panelClass: 'nf-dialog', autoFocus: 'first-tabbable', data: { product },
     }).afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((updated?: Product) => {

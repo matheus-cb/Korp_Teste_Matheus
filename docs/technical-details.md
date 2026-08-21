@@ -9,6 +9,8 @@ O NotaFlow é uma aplicação Angular para cadastro de produtos, criação de no
 
 Cada serviço possui seu próprio PostgreSQL e suas próprias migrations. O Billing não acessa o banco do Inventory, nem o Inventory acessa o banco do Billing. A baixa de estoque é um comando REST interno, com transação local e `Idempotency-Key`; MCP é usado somente para consultas de contexto pelo assistente.
 
+O Inventory também guarda uma trilha imutável por produto: um evento de **criação** e outro a cada **edição de metadados**, sempre com usuário e data/hora. Produtos já existentes recebem o evento de criação durante a migration; não são inventadas edições históricas que não existiam no banco. O modal de edição consulta o detalhe do produto e apresenta essa trilha. Saldo não é alterado nesse fluxo.
+
 ## Angular: ciclo de vida e organização
 
 O frontend usa Angular 22 com componentes standalone, Router, Reactive Forms e injeção por `inject()`.
@@ -109,6 +111,6 @@ O Billing pode usar OpenAI Responses API ou uma ponte local para Claude Code, co
 
 O quality gate executa verificação das regras de agente, restore, analisadores, format check, build, testes .NET, lint e build Angular. Em ambiente com Docker, os testes de integração usam PostgreSQL real e o pipeline também valida a stack publicada por Compose.
 
-Os testes críticos cobrem baixa integral, saldo insuficiente, concorrência, idempotência, resposta perdida, fechamento único, falha externa, ações propostas e validação de evidência do assistente. Mutation testing permanece reservado para regras de saldo, status e idempotência.
+Os testes críticos cobrem baixa integral, saldo insuficiente, concorrência, idempotência, resposta perdida, fechamento único, falha externa, ações propostas, trilha de criação/edição de produtos e validação de evidência do assistente. Mutation testing permanece reservado para regras de saldo, status e idempotência.
 
 Para a demonstração, o fluxo manual permanece utilizável mesmo sem provedor de IA configurado.
