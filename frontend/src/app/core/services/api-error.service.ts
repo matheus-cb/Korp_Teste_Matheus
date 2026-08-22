@@ -28,6 +28,8 @@ export class ApiErrorService {
         'A operação foi recusada porque os dados não correspondem à tentativa original.',
       AI_UNAVAILABLE:
         'O Copiloto está indisponível agora. Você pode continuar pelo preenchimento manual.',
+      AI_BUSY:
+        'O Copiloto já está processando outra solicitação. Aguarde alguns segundos e tente novamente.',
       AI_DISABLED:
         'O Copiloto está desabilitado porque a chave da OpenAI não foi configurada. O preenchimento manual continua disponível.',
       PRODUCT_CODE_ALREADY_EXISTS:

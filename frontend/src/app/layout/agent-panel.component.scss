@@ -203,10 +203,18 @@ mat-icon svg {
 
 .draft-actions {
   display: flex;
+  align-items: center;
   padding: var(--sp-2) 9px;
   border-top: 1px solid var(--n-200);
   background: var(--n-100);
   gap: 6px;
+}
+
+.draft-confirmation {
+  flex: 1;
+  color: var(--n-500);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
 }
 
 .draft-actions .nf-btn {

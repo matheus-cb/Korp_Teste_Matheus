@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Billing.Api.Application;
 using Billing.Api.Contracts;
+using Billing.Api.Domain;
 using Billing.Api.Options;
 using Microsoft.Extensions.Options;
 
@@ -429,18 +430,46 @@ public sealed class ClaudeBridgeClient(
             Content = new StringContent(corpo.ToJsonString(), Encoding.UTF8, "application/json")
         };
 
-        using var resposta = await httpClient.SendAsync(requisicao, cancellationToken);
-        if (!resposta.IsSuccessStatusCode)
+        HttpResponseMessage resposta;
+        try
         {
-            // INV-21/INV-22: o corpo não vai para o log nem para o cliente.
-            logger.LogWarning("A ponte respondeu {Status}.", (int)resposta.StatusCode);
-            throw new InvalidOperationException($"The Claude bridge returned {(int)resposta.StatusCode}.");
+            resposta = await httpClient.SendAsync(requisicao, cancellationToken);
+        }
+        catch (HttpRequestException exception)
+        {
+            logger.LogWarning(exception, "A ponte do assistente não pôde ser alcançada.");
+            throw new DependencyUnavailableException(
+                "AI_UNAVAILABLE",
+                "O assistente está temporariamente indisponível. Tente novamente em instantes.");
         }
 
-        var conteudo = await resposta.Content.ReadAsStringAsync(cancellationToken);
-        using var documento = JsonDocument.Parse(conteudo);
-        if (documento.RootElement.TryGetProperty("texto", out var texto) && texto.ValueKind == JsonValueKind.String)
-            return texto.GetString()!;
+        using (resposta)
+        {
+            if (!resposta.IsSuccessStatusCode)
+            {
+                // A ponte usa 429 para proteger a VPS quando já há uma inferência
+                // em andamento. Isso não é um erro interno da aplicação: o cliente
+                // precisa receber uma orientação segura para tentar depois.
+                if (resposta.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    logger.LogWarning("A ponte do assistente está ocupada.");
+                    throw new DependencyUnavailableException(
+                        "AI_BUSY",
+                        "O assistente está processando outra solicitação. Tente novamente em alguns segundos.");
+                }
+
+                // INV-21/INV-22: o corpo não vai para o log nem para o cliente.
+                logger.LogWarning("A ponte respondeu {Status}.", (int)resposta.StatusCode);
+                throw new DependencyUnavailableException(
+                    "AI_UNAVAILABLE",
+                    "O assistente está temporariamente indisponível. Tente novamente em instantes.");
+            }
+
+            var conteudo = await resposta.Content.ReadAsStringAsync(cancellationToken);
+            using var documento = JsonDocument.Parse(conteudo);
+            if (documento.RootElement.TryGetProperty("texto", out var texto) && texto.ValueKind == JsonValueKind.String)
+                return texto.GetString()!;
+        }
 
         throw new InvalidOperationException("The Claude bridge returned no text.");
     }

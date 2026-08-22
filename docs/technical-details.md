@@ -107,6 +107,8 @@ O assistente pode sugerir cadastro de produto ou criação de nota por meio de u
 
 O Billing pode usar OpenAI Responses API ou uma ponte local para Claude Code, conforme a configuração do ambiente. Em ambos os casos, a proveniência de produtos é derivada dos resultados das ferramentas, não de uma alegação do modelo. Com OpenAI, as chamadas usam `store: false`; isso reduz o estado mantido pela API para a aplicação, mas não deve ser interpretado como retenção zero do provedor. Logs não guardam token, imagem, prompt integral ou raciocínio interno.
 
+Quando a ponte local já está ocupada, ela responde `429` com uma indicação de nova tentativa. O Billing converte esse caso em `503` com o código `AI_BUSY`, e a interface orienta a pessoa a aguardar alguns segundos, em vez de exibir um `INTERNAL_ERROR`. Indisponibilidade de rede ou do provedor segue o mesmo contrato sanitizado com `AI_UNAVAILABLE`. A unidade do agente aguarda a rede Docker antes de iniciar, evitando a corrida de boot que poderia deixar a ponte sem escutar até um reinício.
+
 ## Qualidade e entrega contínua
 
 O quality gate executa verificação das regras de agente, restore, analisadores, format check, build, testes .NET, lint e build Angular. Em ambiente com Docker, os testes de integração usam PostgreSQL real e o pipeline também valida a stack publicada por Compose.
