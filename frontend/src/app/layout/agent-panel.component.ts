@@ -92,6 +92,9 @@ const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
                     </div>
                   }
                   <div class="draft-actions">
+                    @if (!turn.done && turn.action) {
+                      <span class="draft-confirmation">Revise os itens e aprove para criar a nota.</span>
+                    }
                     @if (turn.done) {
                       <span class="draft-done">Nota criada</span>
                     } @else if (turn.action) {
@@ -124,6 +127,7 @@ const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
                     </div>
                   }
                   <div class="draft-actions">
+                    <span class="draft-confirmation">Revise os dados e aprove para cadastrar.</span>
                     <button type="button" class="nf-btn" (click)="discard(turn)">Descartar</button>
                     <button
                       type="button"

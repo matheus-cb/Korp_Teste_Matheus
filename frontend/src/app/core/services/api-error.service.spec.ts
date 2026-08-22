@@ -32,4 +32,13 @@ describe('ApiErrorService', () => {
     );
     expect(result.message).toContain('preenchimento manual');
   });
+
+  it('explica quando a ponte do assistente está ocupada', () => {
+    const result = service.from(
+      new HttpErrorResponse({ status: 503, error: { code: 'AI_BUSY' } }),
+    );
+
+    expect(result.title).toBe('Serviço indisponível');
+    expect(result.message).toContain('outra solicitação');
+  });
 });

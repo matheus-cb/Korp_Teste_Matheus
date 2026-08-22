@@ -90,6 +90,8 @@ A IA não possui ferramenta de escrita: nenhuma tool MCP cria produto, persiste 
 
 A confirmação é controle de servidor, não de interface: sem a assinatura, uma injeção de prompt contornaria a tela chamando o endpoint de execução direto. Texto, imagens e descrições do catálogo são tratados como dados não confiáveis.
 
+Se a ponte do Copiloto estiver ocupada, o sistema informa `AI_BUSY` e orienta uma nova tentativa, sem transformar a situação em erro interno genérico. Falhas de rede ou do provedor usam `AI_UNAVAILABLE`; o preenchimento manual continua disponível.
+
 Não envie dados pessoais ou sigilosos ao Copiloto. As requisições usam `store: false`, mas as políticas de monitoramento e retenção da API ainda se aplicam; veja o detalhamento técnico.
 
 ## Documentação

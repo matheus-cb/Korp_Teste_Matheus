@@ -147,7 +147,10 @@ const servidor = http.createServer((req, res) => {
         if (!segredoConfere(pedido.segredo)) return responder(401, { erro: 'nao autorizado' });
         if (typeof pedido.prompt !== 'string' || !pedido.prompt.trim()) return responder(400, { erro: 'prompt ausente' });
         if (pedido.prompt.length > MAX_PROMPT) return responder(413, { erro: 'prompt grande demais' });
-        if (ocupado) return responder(429, { erro: 'ponte ocupada' });
+        if (ocupado) {
+            res.setHeader('retry-after', '2');
+            return responder(429, { erro: 'ponte ocupada' });
+        }
 
         ocupado = true;
         const inicio = Date.now();

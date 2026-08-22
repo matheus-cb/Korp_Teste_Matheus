@@ -47,7 +47,9 @@ echo "[+] ponte vai vincular em $GATEWAY"
 cat > /etc/systemd/system/notaflow-bridge.service <<'UNIT'
 [Unit]
 Description=Ponte de inferencia do Copiloto NotaFlow
-After=network.target
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
 
 [Service]
 Type=simple
@@ -64,6 +66,11 @@ Environment=CLAUDE_BIN=/var/lib/nfagent/.local/bin/claude
 ExecStart=/usr/bin/node /var/lib/nfagent/bridge/server.js
 Restart=always
 RestartSec=5
+
+# O endereço do gateway Docker só existe depois que a rede do daemon é criada.
+# Esperar aqui evita a corrida de boot que gerava EADDRNOTAVAIL e deixava o
+# assistente indisponível até um reinício posterior do serviço.
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do /usr/sbin/ip -4 addr show docker0 2>/dev/null | /usr/bin/grep -q "inet " && exit 0; /usr/bin/sleep 1; done; exit 1'
 
 # O harness roda aqui dentro: limitar o que ele alcanca.
 NoNewPrivileges=yes
