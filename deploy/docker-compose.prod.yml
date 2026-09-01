@@ -23,6 +23,10 @@ services:
       SITE_ADDRESS: ${SITE_ADDRESS:?defina SITE_ADDRESS no .env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Vhosts de outras aplicacoes desta maquina, importados pelo Caddyfile.
+      # Cada aplicacao e dona de um arquivo aqui; o deploy do NotaFlow nunca
+      # sobrescreve o que nao e dele.
+      - ./sites:/etc/caddy/sites:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on: [frontend]

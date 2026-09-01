@@ -16,3 +16,15 @@
 	# /inventory-api/ so libera catalogo e movimentos, o resto devolve 404.
 	reverse_proxy frontend:80
 }
+
+# Outras aplicacoes na mesma maquina trazem o vhost delas.
+#
+# Existe porque a Caddy e deste compose e este arquivo e sobrescrito pelo deploy
+# do NotaFlow. Vhost de outra aplicacao escrito aqui seria apagado pelo proximo
+# deploy daqui, e vhost escrito la fora seria apagado por este arquivo: os dois
+# deploys disputariam o mesmo destino. Com o import, cada aplicacao e dona de um
+# arquivo proprio no diretorio, e este Caddyfile nao precisa saber quais existem.
+#
+# O diretorio e montado pelo compose. Se estiver vazio, a Caddy avisa e segue --
+# o NotaFlow continua servindo sozinho.
+import /etc/caddy/sites/*.caddy
