@@ -1,0 +1,14 @@
+{
+  "folders": [
+    { "path": ".", "name": "NotaFlow" },
+    { "path": "frontend", "name": "frontend (Angular)" }
+  ],
+  "settings": {
+    "files.exclude": {
+      "frontend": true
+    }
+  },
+  "extensions": {
+    "recommendations": ["Angular.ng-template"]
+  }
+}
