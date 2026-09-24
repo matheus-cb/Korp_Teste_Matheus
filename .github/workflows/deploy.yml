@@ -143,19 +143,25 @@ jobs:
             fi
           done
 
-          docker compose -f docker-compose.prod.yml pull
-          docker compose -f docker-compose.prod.yml up -d --remove-orphans
+          # Override opcional da VPS, que nao viaja no commit: na Contabo a borda
+          # TLS e o Caddy do sistema, entao docker-compose.vps.yml desliga o Caddy
+          # do compose e publica o frontend so no loopback.
+          compose="docker compose -f docker-compose.prod.yml"
+          [ -f docker-compose.vps.yml ] && compose="$compose -f docker-compose.vps.yml"
+
+          $compose pull
+          $compose up -d --remove-orphans
           docker logout ghcr.io
 
           # A stack precisa ficar de pe sozinha; nao basta o compose retornar 0.
           echo "aguardando healthchecks..."
           for i in $(seq 1 40); do
-            unhealthy=$(docker compose -f docker-compose.prod.yml ps \
+            unhealthy=$($compose ps \
               --format '{{.Service}} {{.Health}}' | awk '$2=="unhealthy"||$2=="starting"' | wc -l)
             [ "$unhealthy" -eq 0 ] && break
             sleep 6
           done
-          docker compose -f docker-compose.prod.yml ps
+          $compose ps
 
           curl --fail --silent --show-error --max-time 15 http://127.0.0.1:5002/health/ready > /dev/null
           curl --fail --silent --show-error --max-time 15 http://127.0.0.1:5001/health      > /dev/null
